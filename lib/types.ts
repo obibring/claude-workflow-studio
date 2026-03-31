@@ -121,6 +121,7 @@ export type AppState = {
 }
 
 export type AgentNodeData = {
+  agentId: string
   agentName: string
   description: string
   phaseIndex: number

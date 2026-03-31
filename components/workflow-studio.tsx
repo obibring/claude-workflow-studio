@@ -6,19 +6,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import JSZip from "jszip"
 import {
   addEdge,
-  applyEdgeChanges,
-  applyNodeChanges,
   Background,
   Controls,
   MiniMap,
   Panel,
   ReactFlow,
+  useNodesState,
+  useEdgesState,
   useReactFlow,
   type Connection,
   type Edge,
-  type EdgeChange,
   type Node,
-  type NodeChange,
 } from "@xyflow/react"
 import { AnimatePresence, motion } from "framer-motion"
 import {
@@ -65,7 +63,7 @@ import {
   sanitizeFileName,
   slugifyName,
 } from "@/lib/claude"
-import type { AgentAsset, AgentNodeData, AppState, ClaudeHookEvent, FlowNodeRecord, HookBinding, ScriptAsset } from "@/lib/types"
+import type { AgentAsset, AgentNodeData, AppState, ClaudeHookEvent, HookBinding, ScriptAsset, WorkflowSettings } from "@/lib/types"
 
 const nodeTypes = { agent: FlowAgentNode }
 const tabs = ["overview", "hooks", "markdown", "scripts", "output"] as const
@@ -106,8 +104,47 @@ function downloadText(path: string, content: string) {
   URL.revokeObjectURL(url)
 }
 
+function buildNodeData(
+  agentId: string,
+  agents: AgentAsset[],
+  hookBindings: HookBinding[],
+  phaseIndex: number,
+): AgentNodeData {
+  const agent = agents.find((item) => item.id === agentId)
+  const hookCount = hookBindings.filter((binding) => binding.agentId === agentId).length
+  const scriptCount = new Set(
+    hookBindings.filter((binding) => binding.agentId === agentId).map((binding) => binding.scriptId).filter(Boolean),
+  ).size
+  return {
+    agentId,
+    agentName: agent?.name || "missing-agent",
+    description: agent?.description || "Missing agent",
+    phaseIndex: phaseIndex + 1,
+    hookCount,
+    scriptCount,
+    model: agent?.model || "inherit",
+  }
+}
+
+const DEFAULT_SETTINGS: WorkflowSettings = {
+  workflowName: "my-workflow",
+  autoGenerateWorkflowGuard: true,
+  includeLifecycleScaffolds: true,
+}
+
 export function WorkflowStudio() {
-  const [state, setState] = useState<AppState | null>(null)
+  // Domain state (no nodes/edges)
+  const [agents, setAgents] = useState<AgentAsset[]>([])
+  const [scripts, setScripts] = useState<ScriptAsset[]>([])
+  const [hookBindings, setHookBindings] = useState<HookBinding[]>([])
+  const [settings, setSettings] = useState<WorkflowSettings>(DEFAULT_SETTINGS)
+
+  // React Flow state
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<AgentNodeData>>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
+
+  const { screenToFlowPosition } = useReactFlow()
+
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>("overview")
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [newHookEvent, setNewHookEvent] = useState<ClaudeHookEvent>("PreToolUse")
@@ -118,140 +155,179 @@ export function WorkflowStudio() {
   const [newHookPromptText, setNewHookPromptText] = useState("Evaluate $ARGUMENTS and return valid JSON.")
   const [newHookUrl, setNewHookUrl] = useState("http://localhost:3001/hooks")
   const [generatedDownloadState, setGeneratedDownloadState] = useState<"idle" | "working" | "done">("idle")
+  const [loaded, setLoaded] = useState(false)
 
-  const { screenToFlowPosition } = useReactFlow()
   const agentInputRef = useRef<HTMLInputElement | null>(null)
   const scriptInputRef = useRef<HTMLInputElement | null>(null)
   const dragDataRef = useRef<{ agentId: string } | null>(null)
 
+  // Load from localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) {
         const parsed = JSON.parse(saved) as AppState
-        setState(parsed)
-        setSelectedNodeId(parsed.nodes[0]?.id || null)
+        setAgents(parsed.agents || [])
+        setScripts(parsed.scripts || [])
+        setHookBindings(parsed.hookBindings || [])
+        setSettings(parsed.settings || DEFAULT_SETTINGS)
+        if (parsed.nodes?.length) {
+          setNodes(
+            parsed.nodes.map((node, index) => ({
+              id: node.id,
+              type: "agent" as const,
+              position: node.position,
+              data: buildNodeData(node.agentId, parsed.agents || [], parsed.hookBindings || [], index),
+            })),
+          )
+          setSelectedNodeId(parsed.nodes[0]?.id || null)
+        }
+        if (parsed.edges?.length) {
+          setEdges(
+            parsed.edges.map((e) => ({
+              id: e.id,
+              source: e.source,
+              target: e.target,
+              label: e.label,
+              animated: true,
+              style: { strokeWidth: 2 },
+            })),
+          )
+        }
+        setLoaded(true)
         return
       }
     } catch {
       // ignore corrupted state and fall back to blank
     }
-    setState(createBlankAppState())
+    setLoaded(true)
     setSelectedNodeId(null)
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Save to localStorage
   useEffect(() => {
-    if (!state) return
+    if (!loaded) return
+    const state: AppState = {
+      version: 1,
+      agents,
+      scripts,
+      hookBindings,
+      nodes: nodes.map((n) => ({
+        id: n.id,
+        agentId: (n.data as AgentNodeData).agentId,
+        position: n.position,
+      })),
+      edges: edges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        label: e.label as string | undefined,
+      })),
+      settings,
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-  }, [state])
+  }, [agents, scripts, hookBindings, settings, nodes, edges, loaded])
 
-  const generated = useMemo(() => (state ? generateBundle(state) : null), [state])
+  // Reconstruct AppState for generateBundle and validation
+  const appState = useMemo<AppState | null>(() => {
+    if (!loaded) return null
+    return {
+      version: 1,
+      agents,
+      scripts,
+      hookBindings,
+      nodes: nodes.map((n) => ({
+        id: n.id,
+        agentId: (n.data as AgentNodeData).agentId,
+        position: n.position,
+      })),
+      edges: edges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        label: e.label as string | undefined,
+      })),
+      settings,
+    }
+  }, [loaded, agents, scripts, hookBindings, nodes, edges, settings])
+
+  const generated = useMemo(() => (appState ? generateBundle(appState) : null), [appState])
   const issues = generated?.issues || []
 
-  const nodes = useMemo<Node<AgentNodeData>[]>(() => {
-    if (!state) return []
-    return state.nodes.map((node, index) => {
-      const agent = state.agents.find((item) => item.id === node.agentId)
-      const hookCount = state.hookBindings.filter((binding) => binding.agentId === node.agentId).length
-      const scriptCount = new Set(
-        state.hookBindings.filter((binding) => binding.agentId === node.agentId).map((binding) => binding.scriptId).filter(Boolean),
-      ).size
-      return {
-        id: node.id,
-        type: "agent",
-        position: node.position,
-        selected: node.selected,
-        data: {
-          agentName: agent?.name || "missing-agent",
-          description: agent?.description || "Missing agent",
-          phaseIndex: index + 1,
-          hookCount,
-          scriptCount,
-          model: agent?.model || "inherit",
-        },
-      }
-    })
-  }, [state])
-
-  const edges = useMemo<Edge[]>(() => {
-    if (!state) return []
-    return state.edges.map((edge) => ({ ...edge, animated: true, style: { strokeWidth: 2 } }))
-  }, [state])
-
-  const selectedNode = state?.nodes.find((node) => node.id === selectedNodeId) || null
-  const selectedAgent = selectedNode ? state?.agents.find((item) => item.id === selectedNode.agentId) || null : null
-  const selectedBindings = selectedAgent ? state?.hookBindings.filter((binding) => binding.agentId === selectedAgent.id) || [] : []
+  // Derive selected agent from selected node
+  const selectedNode = nodes.find((node) => node.id === selectedNodeId) || null
+  const selectedAgentId = selectedNode ? (selectedNode.data as AgentNodeData).agentId : null
+  const selectedAgent = selectedAgentId ? agents.find((item) => item.id === selectedAgentId) || null : null
+  const selectedBindings = selectedAgent ? hookBindings.filter((binding) => binding.agentId === selectedAgent.id) : []
   const selectedScripts = selectedAgent
-    ? state?.scripts.filter((script) => selectedBindings.some((binding) => binding.scriptId === script.id)) || []
+    ? scripts.filter((script) => selectedBindings.some((binding) => binding.scriptId === script.id))
     : []
 
-  const onNodesChange = useCallback(
-    (changes: NodeChange[]) => {
-      setState((current) => {
-        if (!current) return current
-        const nextNodes = applyNodeChanges(
-          changes,
-          current.nodes.map((node) => ({ id: node.id, position: node.position, selected: node.selected, data: {}, type: "agent" })),
-        )
-        return {
-          ...current,
-          nodes: current.nodes.map((node) => {
-            const updated = nextNodes.find((item) => item.id === node.id)
-            return updated
-              ? { ...node, position: updated.position, selected: updated.selected }
-              : node
-          }),
+  // Sync node data when agents or hookBindings change
+  useEffect(() => {
+    if (!loaded) return
+    setNodes((prevNodes) =>
+      prevNodes.map((node, index) => {
+        const agentId = (node.data as AgentNodeData).agentId
+        const newData = buildNodeData(agentId, agents, hookBindings, index)
+        const oldData = node.data as AgentNodeData
+        // Only update if data actually changed to avoid unnecessary re-renders
+        if (
+          oldData.agentName === newData.agentName &&
+          oldData.description === newData.description &&
+          oldData.hookCount === newData.hookCount &&
+          oldData.scriptCount === newData.scriptCount &&
+          oldData.model === newData.model
+        ) {
+          return node
         }
-      })
-    },
-    [setState],
-  )
-
-  const onEdgesChange = useCallback(
-    (changes: EdgeChange[]) => {
-      setState((current) => {
-        if (!current) return current
-        const nextEdges = applyEdgeChanges(changes, current.edges as Edge[]) as Edge[]
-        return {
-          ...current,
-          edges: nextEdges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target, label: edge.label as string | undefined, selected: edge.selected })),
-        }
-      })
-    },
-    [setState],
-  )
+        return { ...node, data: newData }
+      }),
+    )
+  }, [agents, hookBindings, loaded, setNodes])
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      setState((current) => {
-        if (!current || !connection.source || !connection.target) return current
-        const next = addEdge({ ...connection, id: makeId("edge") }, current.edges as Edge[])
-        return {
-          ...current,
-          edges: next.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target, label: edge.label as string | undefined, selected: edge.selected })),
-        }
-      })
+      if (!connection.source || !connection.target) return
+      setEdges((eds) => addEdge({ ...connection, id: makeId("edge"), animated: true, style: { strokeWidth: 2 } }, eds))
     },
-    [setState],
+    [setEdges],
   )
 
   const resetTemplate = () => {
     const template = createFivePhaseTemplate()
-    setState(template)
+    setAgents(template.agents)
+    setScripts(template.scripts)
+    setHookBindings(template.hookBindings)
+    setSettings(template.settings)
+    setNodes(
+      template.nodes.map((node, index) => ({
+        id: node.id,
+        type: "agent" as const,
+        position: node.position,
+        data: buildNodeData(node.agentId, template.agents, template.hookBindings, index),
+      })),
+    )
+    setEdges(
+      template.edges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        label: e.label,
+        animated: true,
+        style: { strokeWidth: 2 },
+      })),
+    )
     setSelectedNodeId(template.nodes[0]?.id || null)
   }
 
   const autoLayout = () => {
-    setState((current) => {
-      if (!current) return current
-      return {
-        ...current,
-        nodes: current.nodes.map((node, index) => ({
-          ...node,
-          position: { x: 120 + index * 320, y: 180 + (index % 2) * 36 },
-        })),
-      }
-    })
+    setNodes((prevNodes) =>
+      prevNodes.map((node, index) => ({
+        ...node,
+        position: { x: 120 + index * 320, y: 180 + (index % 2) * 36 },
+      })),
+    )
   }
 
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -270,97 +346,74 @@ export function WorkflowStudio() {
         y: event.clientY,
       })
 
-      setState((s) => {
-        if (!s) return s
-        const newNode: FlowNodeRecord = {
+      setNodes((prev) => {
+        const newNode: Node<AgentNodeData> = {
           id: makeId("node"),
-          agentId: data.agentId,
+          type: "agent",
           position,
+          data: buildNodeData(data.agentId, agents, hookBindings, prev.length),
         }
-        return { ...s, nodes: [...s.nodes, newNode] }
+        return [...prev, newNode]
       })
 
       dragDataRef.current = null
     },
-    [screenToFlowPosition],
+    [screenToFlowPosition, setNodes, agents, hookBindings],
   )
 
   const handleAgentUpload = async (fileList: FileList | null) => {
     if (!fileList?.length) return
     const contents = await readTextFiles(fileList)
-    setState((current) => {
-      if (!current) return current
-      const next = structuredClone(current)
-      for (const file of contents) {
-        const { agent, bindings } = parseAgentMarkdown(file.content, file.name)
-        next.agents.push(agent)
-        next.hookBindings.push(...bindings)
-      }
-      return next
-    })
+    const newAgents: AgentAsset[] = []
+    const newBindings: HookBinding[] = []
+    for (const file of contents) {
+      const { agent, bindings } = parseAgentMarkdown(file.content, file.name)
+      newAgents.push(agent)
+      newBindings.push(...bindings)
+    }
+    setAgents((prev) => [...prev, ...newAgents])
+    setHookBindings((prev) => [...prev, ...newBindings])
   }
 
   const handleScriptUpload = async (fileList: FileList | null) => {
     if (!fileList?.length) return
     const contents = await readTextFiles(fileList)
-    setState((current) => {
-      if (!current) return current
-      return {
-        ...current,
-        scripts: [
-          ...current.scripts,
-          ...contents.map((file) => ({
-            id: makeId("script"),
-            name: sanitizeFileName(file.name).replace(/\.[^.]+$/, ""),
-            fileName: sanitizeFileName(file.name),
-            language: inferLanguage(file.name),
-            content: file.content,
-            origin: "upload" as const,
-            createdAt: new Date().toISOString(),
-          })),
-        ],
-      }
-    })
+    setScripts((prev) => [
+      ...prev,
+      ...contents.map((file) => ({
+        id: makeId("script"),
+        name: sanitizeFileName(file.name).replace(/\.[^.]+$/, ""),
+        fileName: sanitizeFileName(file.name),
+        language: inferLanguage(file.name),
+        content: file.content,
+        origin: "upload" as const,
+        createdAt: new Date().toISOString(),
+      })),
+    ])
   }
 
   const createAgent = useCallback(() => {
-    setState((s) => {
-      if (!s) return s
-      const agent = createAgentAsset(`agent-${s.agents.length + 1}`)
-      return { ...s, agents: [...s.agents, agent] }
+    setAgents((prev) => {
+      const agent = createAgentAsset(`agent-${prev.length + 1}`)
+      return [...prev, agent]
     })
   }, [])
 
   const createScript = () => {
-    setState((current) => {
-      if (!current) return current
-      return { ...current, scripts: [...current.scripts, createScriptAsset(`hook-${current.scripts.length + 1}.ts`)] }
-    })
+    setScripts((prev) => [...prev, createScriptAsset(`hook-${prev.length + 1}.ts`)])
   }
 
   const updateSelectedAgent = (patch: Partial<AgentAsset>) => {
     if (!selectedAgent) return
-    setState((current) => {
-      if (!current) return current
-      return {
-        ...current,
-        agents: current.agents.map((agent) => (agent.id === selectedAgent.id ? { ...agent, ...patch } : agent)),
-      }
-    })
+    setAgents((prev) => prev.map((agent) => (agent.id === selectedAgent.id ? { ...agent, ...patch } : agent)))
   }
 
   const updateScript = (scriptId: string, patch: Partial<ScriptAsset>) => {
-    setState((current) => {
-      if (!current) return current
-      return {
-        ...current,
-        scripts: current.scripts.map((script) => (script.id === scriptId ? { ...script, ...patch } : script)),
-      }
-    })
+    setScripts((prev) => prev.map((script) => (script.id === scriptId ? { ...script, ...patch } : script)))
   }
 
   const addHookBinding = () => {
-    if (!selectedAgent || !state) return
+    if (!selectedAgent) return
     const placement = getPlacementForEvent(newHookEvent)
     const binding: HookBinding = {
       id: makeId("binding"),
@@ -374,53 +427,34 @@ export function WorkflowStudio() {
       promptText: newHookType === "prompt" || newHookType === "agent" ? newHookPromptText : undefined,
       url: newHookType === "http" ? newHookUrl : undefined,
     }
-
-    setState((current) => {
-      if (!current) return current
-      return { ...current, hookBindings: [...current.hookBindings, binding] }
-    })
+    setHookBindings((prev) => [...prev, binding])
   }
 
   const removeHookBinding = (bindingId: string) => {
-    setState((current) => {
-      if (!current) return current
-      return { ...current, hookBindings: current.hookBindings.filter((binding) => binding.id !== bindingId) }
-    })
+    setHookBindings((prev) => prev.filter((binding) => binding.id !== bindingId))
   }
 
-  const removeAgentClass = useCallback((agentId: string) => {
-    setState((s) => {
-      if (!s) return s
+  const removeAgentClass = useCallback(
+    (agentId: string) => {
+      // Find node IDs to remove
       const nodeIdsToRemove = new Set(
-        s.nodes.filter((n) => n.agentId === agentId).map((n) => n.id)
+        nodes.filter((n) => (n.data as AgentNodeData).agentId === agentId).map((n) => n.id),
       )
-      return {
-        ...s,
-        agents: s.agents.filter((a) => a.id !== agentId),
-        hookBindings: s.hookBindings.filter((b) => b.agentId !== agentId),
-        nodes: s.nodes.filter((n) => n.agentId !== agentId),
-        edges: s.edges.filter(
-          (e) => !nodeIdsToRemove.has(e.source) && !nodeIdsToRemove.has(e.target)
-        ),
-      }
-    })
-    setSelectedNodeId(null)
-  }, [])
+      setAgents((prev) => prev.filter((a) => a.id !== agentId))
+      setHookBindings((prev) => prev.filter((b) => b.agentId !== agentId))
+      setNodes((prev) => prev.filter((n) => (n.data as AgentNodeData).agentId !== agentId))
+      setEdges((prev) => prev.filter((e) => !nodeIdsToRemove.has(e.source) && !nodeIdsToRemove.has(e.target)))
+      setSelectedNodeId(null)
+    },
+    [nodes, setNodes, setEdges],
+  )
 
   const removeSelectedNode = useCallback(() => {
     if (!selectedNode) return
-    setState((s) => {
-      if (!s) return s
-      return {
-        ...s,
-        nodes: s.nodes.filter((n) => n.id !== selectedNode.id),
-        edges: s.edges.filter(
-          (e) => e.source !== selectedNode.id && e.target !== selectedNode.id
-        ),
-      }
-    })
+    setNodes((prev) => prev.filter((n) => n.id !== selectedNode.id))
+    setEdges((prev) => prev.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id))
     setSelectedNodeId(null)
-  }, [selectedNode])
+  }, [selectedNode, setNodes, setEdges])
 
   const copyFile = async (path: string, content: string) => {
     await navigator.clipboard.writeText(content)
@@ -436,14 +470,20 @@ export function WorkflowStudio() {
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement("a")
     anchor.href = url
-    anchor.download = `${slugifyName(state?.settings.workflowName || "claude-workflow")}.zip`
+    anchor.download = `${slugifyName(settings.workflowName || "claude-workflow")}.zip`
     anchor.click()
     URL.revokeObjectURL(url)
     setGeneratedDownloadState("done")
     setTimeout(() => setGeneratedDownloadState("idle"), 1200)
   }
 
-  if (!state) {
+  // Save state to localStorage (explicit button)
+  const saveLocalState = () => {
+    if (!appState) return
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(appState))
+  }
+
+  if (!loaded) {
     return <div className="grid min-h-screen place-items-center bg-slate-950 text-slate-200">Loading workflow studio…</div>
   }
 
@@ -470,7 +510,7 @@ export function WorkflowStudio() {
               <Button variant="outline" onClick={autoLayout}>
                 <Wand2 className="size-4" /> Auto layout
               </Button>
-              <Button variant="outline" onClick={() => localStorage.setItem(STORAGE_KEY, JSON.stringify(state))}>
+              <Button variant="outline" onClick={saveLocalState}>
                 <Save className="size-4" /> Save local state
               </Button>
               <Button onClick={downloadBundle}>
@@ -510,10 +550,10 @@ export function WorkflowStudio() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-slate-400">
                     <span>Agents</span>
-                    <Badge variant="secondary">{state.agents.length}</Badge>
+                    <Badge variant="secondary">{agents.length}</Badge>
                   </div>
                   <div className="max-h-[280px] space-y-2 overflow-y-auto pr-1">
-                    {state.agents.map((agent) => (
+                    {agents.map((agent) => (
                       <div
                         key={agent.id}
                         draggable
@@ -522,7 +562,7 @@ export function WorkflowStudio() {
                           dragDataRef.current = { agentId: agent.id }
                         }}
                         onClick={() => {
-                          const node = state.nodes.find((item) => item.agentId === agent.id)
+                          const node = nodes.find((item) => (item.data as AgentNodeData).agentId === agent.id)
                           if (node) {
                             setSelectedNodeId(node.id)
                             setInspectorTab("overview")
@@ -558,10 +598,10 @@ export function WorkflowStudio() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-xs uppercase tracking-[0.2em] text-slate-400">
                     <span>Scripts</span>
-                    <Badge variant="secondary">{state.scripts.length}</Badge>
+                    <Badge variant="secondary">{scripts.length}</Badge>
                   </div>
                   <div className="max-h-[220px] space-y-2 overflow-y-auto pr-1">
-                    {state.scripts.map((script) => (
+                    {scripts.map((script) => (
                       <div key={script.id} className="rounded-[20px] border border-white/8 bg-white/[0.04] p-3">
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
@@ -583,12 +623,12 @@ export function WorkflowStudio() {
                 <CardTitle className="flex items-center gap-2 text-white">
                   <CircuitBoard className="size-5 text-primary" /> Health
                 </CardTitle>
-                <CardDescription>Validation keeps the generated bundle aligned with Claude Code’s hook and subagent shapes.</CardDescription>
+                <CardDescription>Validation keeps the generated bundle aligned with Claude Code's hook and subagent shapes.</CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-3">
-                {metricCard("agents", state.agents.length, "Custom subagents in memory")}
-                {metricCard("hooks", state.hookBindings.length, "Frontmatter + project bindings")}
-                {metricCard("scripts", state.scripts.length, "Uploaded or inline hook scripts")}
+                {metricCard("agents", agents.length, "Custom subagents in memory")}
+                {metricCard("hooks", hookBindings.length, "Frontmatter + project bindings")}
+                {metricCard("scripts", scripts.length, "Uploaded or inline hook scripts")}
                 {metricCard("issues", issues.length, issues.some((issue) => issue.severity === "error") ? "Generation blocked until fixed" : "Ready to export")}
               </CardContent>
             </Card>
@@ -607,7 +647,7 @@ export function WorkflowStudio() {
                   <Badge variant={issues.some((issue) => issue.severity === "error") ? "danger" : "success"}>
                     {issues.some((issue) => issue.severity === "error") ? "Needs fixes" : "Ready to generate"}
                   </Badge>
-                  <Badge variant="secondary">{state.settings.workflowName}</Badge>
+                  <Badge variant="secondary">{settings.workflowName}</Badge>
                 </div>
               </div>
             </CardHeader>
@@ -773,7 +813,7 @@ export function WorkflowStudio() {
                                   onChange={(event) => setNewHookScriptId(event.target.value)}
                                 >
                                   <option value="">Inline command instead of file</option>
-                                  {state.scripts.map((script) => (
+                                  {scripts.map((script) => (
                                     <option key={script.id} value={script.id}>
                                       {script.fileName}
                                     </option>
@@ -812,7 +852,7 @@ export function WorkflowStudio() {
                       <div className="space-y-3">
                         {selectedBindings.length ? (
                           selectedBindings.map((binding) => {
-                            const script = state.scripts.find((item) => item.id === binding.scriptId)
+                            const script = scripts.find((item) => item.id === binding.scriptId)
                             return (
                               <div key={binding.id} className="rounded-[24px] border border-white/8 bg-white/[0.035] p-4">
                                 <div className="flex items-start justify-between gap-3">
