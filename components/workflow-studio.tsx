@@ -33,6 +33,7 @@ import {
   FolderCode,
   GitBranch,
   GripVertical,
+  Hammer,
   LayoutTemplate,
   Plus,
   RefreshCcw,
@@ -1079,7 +1080,7 @@ export function WorkflowStudio() {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <CardTitle className="flex items-center gap-2 text-amber-300">
-                          <Anchor className="size-5" /> Hook:{" "}
+                          <Hammer className="size-5" /> Hook:{" "}
                           {selectedHookBinding.event}
                         </CardTitle>
                         <CardDescription>
