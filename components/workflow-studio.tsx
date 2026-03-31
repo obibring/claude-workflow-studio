@@ -13,6 +13,7 @@ import {
   MiniMap,
   Panel,
   ReactFlow,
+  useReactFlow,
   type Connection,
   type Edge,
   type EdgeChange,
@@ -30,6 +31,7 @@ import {
   FileUp,
   FolderCode,
   GitBranch,
+  GripVertical,
   LayoutTemplate,
   Plus,
   RefreshCcw,
@@ -49,7 +51,6 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   HOOK_CATALOG,
   STORAGE_KEY,
-  addAgentNode,
   commandForScript,
   createAgentAsset,
   createBlankAppState,
@@ -63,7 +64,7 @@ import {
   sanitizeFileName,
   slugifyName,
 } from "@/lib/claude"
-import type { AgentAsset, AgentNodeData, AppState, ClaudeHookEvent, HookBinding, ScriptAsset } from "@/lib/types"
+import type { AgentAsset, AgentNodeData, AppState, ClaudeHookEvent, FlowNodeRecord, HookBinding, ScriptAsset } from "@/lib/types"
 
 const nodeTypes = { agent: FlowAgentNode }
 const tabs = ["overview", "hooks", "markdown", "scripts", "output"] as const
@@ -117,8 +118,10 @@ export function WorkflowStudio() {
   const [newHookUrl, setNewHookUrl] = useState("http://localhost:3001/hooks")
   const [generatedDownloadState, setGeneratedDownloadState] = useState<"idle" | "working" | "done">("idle")
 
+  const { screenToFlowPosition } = useReactFlow()
   const agentInputRef = useRef<HTMLInputElement | null>(null)
   const scriptInputRef = useRef<HTMLInputElement | null>(null)
+  const dragDataRef = useRef<{ agentId: string } | null>(null)
 
   useEffect(() => {
     try {
@@ -250,6 +253,37 @@ export function WorkflowStudio() {
     })
   }
 
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = "move"
+  }, [])
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault()
+      const data = dragDataRef.current
+      if (!data) return
+
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      })
+
+      setState((s) => {
+        if (!s) return s
+        const newNode: FlowNodeRecord = {
+          id: makeId("node"),
+          agentId: data.agentId,
+          position,
+        }
+        return { ...s, nodes: [...s.nodes, newNode] }
+      })
+
+      dragDataRef.current = null
+    },
+    [screenToFlowPosition],
+  )
+
   const handleAgentUpload = async (fileList: FileList | null) => {
     if (!fileList?.length) return
     const contents = await readTextFiles(fileList)
@@ -260,7 +294,6 @@ export function WorkflowStudio() {
         const { agent, bindings } = parseAgentMarkdown(file.content, file.name)
         next.agents.push(agent)
         next.hookBindings.push(...bindings)
-        addAgentNode(next, agent.id)
       }
       return next
     })
@@ -289,16 +322,13 @@ export function WorkflowStudio() {
     })
   }
 
-  const createAgent = () => {
-    setState((current) => {
-      if (!current) return current
-      const agent = createAgentAsset(`phase-${current.agents.length + 1}`)
-      const next = structuredClone(current)
-      next.agents.push(agent)
-      addAgentNode(next, agent.id)
-      return next
+  const createAgent = useCallback(() => {
+    setState((s) => {
+      if (!s) return s
+      const agent = createAgentAsset(`agent-${s.agents.length + 1}`)
+      return { ...s, agents: [...s.agents, agent] }
     })
-  }
+  }, [])
 
   const createScript = () => {
     setState((current) => {
@@ -464,23 +494,34 @@ export function WorkflowStudio() {
                   </div>
                   <div className="max-h-[280px] space-y-2 overflow-y-auto pr-1">
                     {state.agents.map((agent) => (
-                      <button
+                      <div
                         key={agent.id}
-                        className="w-full rounded-[22px] border border-white/8 bg-white/[0.045] p-3 text-left transition hover:border-primary/40 hover:bg-white/[0.07]"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = "move"
+                          dragDataRef.current = { agentId: agent.id }
+                        }}
                         onClick={() => {
                           const node = state.nodes.find((item) => item.agentId === agent.id)
-                          if (node) setSelectedNodeId(node.id)
+                          if (node) {
+                            setSelectedNodeId(node.id)
+                            setInspectorTab("overview")
+                          }
                         }}
+                        className="cursor-grab active:cursor-grabbing rounded-[22px] border border-white/8 bg-white/[0.045] p-3 text-left transition hover:border-primary/40 hover:bg-white/[0.07]"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div>
                             <div className="font-medium text-white">{agent.name}</div>
                             <div className="mt-1 text-xs text-slate-400">{agent.fileName}</div>
                           </div>
-                          <Badge variant="default">{agent.model}</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="default">{agent.model}</Badge>
+                            <GripVertical className="w-4 h-4 text-muted-foreground" />
+                          </div>
                         </div>
                         <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-300">{agent.description}</p>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -552,6 +593,8 @@ export function WorkflowStudio() {
                   setSelectedNodeId(node.id)
                   setInspectorTab("overview")
                 }}
+                onDragOver={onDragOver}
+                onDrop={onDrop}
                 fitView
                 nodeTypes={nodeTypes}
                 className="workflow-flow"
