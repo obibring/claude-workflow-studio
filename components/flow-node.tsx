@@ -2,7 +2,7 @@
 
 import { memo } from "react"
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react"
-import { Activity, BrainCircuit, FileCode2, Sparkles } from "lucide-react"
+import { Activity, Bot, FileCode2, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { AgentNodeData } from "@/lib/types"
@@ -29,7 +29,7 @@ export const FlowAgentNode = memo(function FlowAgentNode({ data, selected }: Nod
             <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-slate-300">{data.description}</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-2 text-primary shadow-inner shadow-primary/10">
-            <BrainCircuit className="size-5" />
+            <Bot className="size-5" />
           </div>
         </div>
 
