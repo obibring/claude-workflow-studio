@@ -1,9 +1,11 @@
+/** @format */
+
 "use client"
 
 import { useMemo } from "react"
 import { ReactFlowProvider } from "@xyflow/react"
 import { WorkflowStudio } from "@/components/workflow-studio"
-import { StorageProvider } from "@/lib/storage-context"
+import { StorageProvider } from "@/context/storage-context"
 import { LocalStorageConnector } from "@/lib/storage"
 
 export default function Page() {

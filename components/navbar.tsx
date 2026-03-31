@@ -10,11 +10,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Sparkles } from "lucide-react"
-import { LayoutTemplate } from "lucide-react"
 import { Wand2 } from "lucide-react"
 import { Save } from "lucide-react"
 import { Download } from "lucide-react"
-import { useProjects } from "@/context/use-projects"
+import { useProjects } from "@/context/projects-context"
 
 export function Navbar({
   resetTemplate,
@@ -32,7 +31,7 @@ export function Navbar({
   const { projects, selectedProjectPath, setSelectedProjectPath } =
     useProjects()
   return (
-    <Card className="overflow-hidden border-0 bg-white/[0.04] -m-6 rounded-none">
+    <Card className="overflow-hidden border-0 bg-white/4 -m-6 rounded-none">
       <CardContent className="flex gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-col gap-2 flex-1">
           <div className="mb-2 flex items-center gap-3 text-xs uppercase tracking-[0.28em] text-primary font-semibold">

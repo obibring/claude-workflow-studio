@@ -78,7 +78,7 @@ import type {
   WorkflowSettings,
 } from "@/lib/types"
 import { Navbar } from "./navbar"
-import { useStorage } from "@/lib/storage-context"
+import { useStorage } from "@/context/storage-context"
 
 const nodeTypes = { agent: FlowAgentNode, hook: FlowHookNode }
 const tabs = ["overview", "hooks", "markdown", "scripts", "output"] as const
