@@ -726,12 +726,13 @@ export function WorkflowStudio() {
                           <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-slate-400">Agent name</label>
                           <Input
                             value={selectedAgent.name}
-                            onChange={(event) =>
+                            onChange={(event) => {
+                              const raw = event.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, "-")
                               updateSelectedAgent({
-                                name: slugifyName(event.target.value),
-                                fileName: `${slugifyName(event.target.value) || "agent"}.md`,
+                                name: raw,
+                                fileName: `${slugifyName(raw) || "agent"}.md`,
                               })
-                            }
+                            }}
                           />
                         </div>
                         <div>
