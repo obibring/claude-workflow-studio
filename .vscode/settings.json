@@ -1,0 +1,12 @@
+{
+  "files.exclude": {
+    "**/.git": true,
+    "**/.next": true,
+    "**/.vscode": true,
+    "**.playwright-mcp": true,
+    "**/node_modules": true,
+    "**/.env.development.local": true,
+    "**/.env.test.local": true,
+    "**/.env.production.local": true
+  }
+}

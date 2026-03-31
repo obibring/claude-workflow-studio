@@ -1,3 +1,7 @@
+.claude
 node_modules
 .next
 .playwright-mcp
+.env*
+!.env.example
+next-env.d.ts
