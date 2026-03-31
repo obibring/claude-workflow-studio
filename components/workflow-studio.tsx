@@ -40,6 +40,7 @@ import {
   Trash2,
   TriangleAlert,
   Wand2,
+  X,
 } from "lucide-react"
 import { FlowAgentNode } from "@/components/flow-node"
 import { Badge } from "@/components/ui/badge"
@@ -387,20 +388,39 @@ export function WorkflowStudio() {
     })
   }
 
-  const removeSelectedAgent = () => {
-    if (!selectedAgent || !selectedNode) return
-    setState((current) => {
-      if (!current) return current
+  const removeAgentClass = useCallback((agentId: string) => {
+    setState((s) => {
+      if (!s) return s
+      const nodeIdsToRemove = new Set(
+        s.nodes.filter((n) => n.agentId === agentId).map((n) => n.id)
+      )
       return {
-        ...current,
-        agents: current.agents.filter((agent) => agent.id !== selectedAgent.id),
-        hookBindings: current.hookBindings.filter((binding) => binding.agentId !== selectedAgent.id),
-        nodes: current.nodes.filter((node) => node.id !== selectedNode.id),
-        edges: current.edges.filter((edge) => edge.source !== selectedNode.id && edge.target !== selectedNode.id),
+        ...s,
+        agents: s.agents.filter((a) => a.id !== agentId),
+        hookBindings: s.hookBindings.filter((b) => b.agentId !== agentId),
+        nodes: s.nodes.filter((n) => n.agentId !== agentId),
+        edges: s.edges.filter(
+          (e) => !nodeIdsToRemove.has(e.source) && !nodeIdsToRemove.has(e.target)
+        ),
       }
     })
     setSelectedNodeId(null)
-  }
+  }, [])
+
+  const removeSelectedNode = useCallback(() => {
+    if (!selectedNode) return
+    setState((s) => {
+      if (!s) return s
+      return {
+        ...s,
+        nodes: s.nodes.filter((n) => n.id !== selectedNode.id),
+        edges: s.edges.filter(
+          (e) => e.source !== selectedNode.id && e.target !== selectedNode.id
+        ),
+      }
+    })
+    setSelectedNodeId(null)
+  }, [selectedNode])
 
   const copyFile = async (path: string, content: string) => {
     await navigator.clipboard.writeText(content)
@@ -511,12 +531,21 @@ export function WorkflowStudio() {
                         className="cursor-grab active:cursor-grabbing rounded-[22px] border border-white/8 bg-white/[0.045] p-3 text-left transition hover:border-primary/40 hover:bg-white/[0.07]"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <div>
+                          <div className="min-w-0">
                             <div className="font-medium text-white">{agent.name}</div>
                             <div className="mt-1 text-xs text-slate-400">{agent.fileName}</div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <Badge variant="default">{agent.model}</Badge>
+                            <button
+                              className="rounded-full p-0.5 text-slate-400 hover:bg-white/10 hover:text-red-400 transition"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                removeAgentClass(agent.id)
+                              }}
+                            >
+                              <X className="size-3.5" />
+                            </button>
                             <GripVertical className="w-4 h-4 text-muted-foreground" />
                           </div>
                         </div>
@@ -593,6 +622,7 @@ export function WorkflowStudio() {
                   setSelectedNodeId(node.id)
                   setInspectorTab("overview")
                 }}
+                onPaneClick={() => setSelectedNodeId(null)}
                 onDragOver={onDragOver}
                 onDrop={onDrop}
                 fitView
@@ -613,30 +643,27 @@ export function WorkflowStudio() {
 
           <AnimatePresence mode="wait">
             <motion.div
-              key={selectedAgent?.id || "output-panel"}
+              key={selectedAgent?.id || "empty-panel"}
               initial={{ opacity: 0, x: 12 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 12 }}
               className="flex min-h-0 flex-col gap-4"
             >
+              {selectedAgent ? (
               <Card className="border-white/10 bg-white/[0.04]">
                 <CardHeader className="gap-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <CardTitle className="flex items-center gap-2 text-white">
-                        <Bot className="size-5 text-primary" /> {selectedAgent ? selectedAgent.name : "Generated outputs"}
+                        <Bot className="size-5 text-primary" /> {selectedAgent.name}
                       </CardTitle>
                       <CardDescription>
-                        {selectedAgent
-                          ? "Deep-inspect the selected agent. Edit metadata, wire hooks, preview markdown, and edit linked scripts inline."
-                          : "Review the generated file bundle and copy or download individual outputs."}
+                        Deep-inspect the selected agent. Edit metadata, wire hooks, preview markdown, and edit linked scripts inline.
                       </CardDescription>
                     </div>
-                    {selectedAgent ? (
-                      <Button variant="danger" size="sm" onClick={removeSelectedAgent}>
-                        <Trash2 className="size-4" /> Remove
-                      </Button>
-                    ) : null}
+                    <Button variant="danger" size="sm" onClick={removeSelectedNode}>
+                      <Trash2 className="size-4" /> Remove
+                    </Button>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {tabs.map((tab) => (
@@ -873,7 +900,7 @@ export function WorkflowStudio() {
                     </div>
                   ) : null}
 
-                  {(!selectedAgent || inspectorTab === "output") && generated ? (
+                  {inspectorTab === "output" && generated ? (
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">
@@ -930,6 +957,13 @@ export function WorkflowStudio() {
                   ) : null}
                 </CardContent>
               </Card>
+              ) : (
+                <Card className="border-white/10 bg-white/[0.04]">
+                  <CardContent className="flex items-center justify-center h-full min-h-[200px] text-muted-foreground">
+                    <p>Select a node on the canvas to inspect it</p>
+                  </CardContent>
+                </Card>
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
