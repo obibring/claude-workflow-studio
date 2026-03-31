@@ -82,6 +82,8 @@ export type HookBinding = {
 export type FlowNodeRecord = {
   id: string
   agentId: string
+  type?: "agent" | "hook"
+  hookBindingId?: string
   position: { x: number; y: number }
   selected?: boolean
 }
@@ -91,6 +93,9 @@ export type FlowEdgeRecord = {
   source: string
   target: string
   label?: string
+  style?: Record<string, unknown>
+  animated?: boolean
+  labelStyle?: Record<string, unknown>
   selected?: boolean
 }
 
@@ -128,4 +133,13 @@ export type AgentNodeData = {
   hookCount: number
   scriptCount: number
   model: string
+}
+
+export type HookNodeData = {
+  hookBindingId: string
+  event: string
+  matcher?: string
+  ifCondition?: string
+  handlerType: string
+  [key: string]: unknown
 }

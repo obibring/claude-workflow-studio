@@ -20,6 +20,7 @@ import {
 } from "@xyflow/react"
 import { AnimatePresence, motion } from "framer-motion"
 import {
+  Anchor,
   ArrowRight,
   Bot,
   CheckCircle2,
@@ -41,6 +42,7 @@ import {
   X,
 } from "lucide-react"
 import { FlowAgentNode } from "@/components/flow-node"
+import { FlowHookNode } from "@/components/flow-hook-node"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -63,9 +65,9 @@ import {
   sanitizeFileName,
   slugifyName,
 } from "@/lib/claude"
-import type { AgentAsset, AgentNodeData, AppState, ClaudeHookEvent, HookBinding, ScriptAsset, WorkflowSettings } from "@/lib/types"
+import type { AgentAsset, AgentNodeData, AppState, ClaudeHookEvent, HookBinding, HookNodeData, ScriptAsset, WorkflowSettings } from "@/lib/types"
 
-const nodeTypes = { agent: FlowAgentNode }
+const nodeTypes = { agent: FlowAgentNode, hook: FlowHookNode }
 const tabs = ["overview", "hooks", "markdown", "scripts", "output"] as const
 
 type InspectorTab = (typeof tabs)[number]
@@ -139,8 +141,8 @@ export function WorkflowStudio() {
   const [hookBindings, setHookBindings] = useState<HookBinding[]>([])
   const [settings, setSettings] = useState<WorkflowSettings>(DEFAULT_SETTINGS)
 
-  // React Flow state
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<AgentNodeData>>([])
+  // React Flow state — nodes can be agent or hook type
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
 
   const { screenToFlowPosition } = useReactFlow()
@@ -172,13 +174,35 @@ export function WorkflowStudio() {
         setHookBindings(parsed.hookBindings || [])
         setSettings(parsed.settings || DEFAULT_SETTINGS)
         if (parsed.nodes?.length) {
+          const allBindings = parsed.hookBindings || []
+          let agentIndex = 0
           setNodes(
-            parsed.nodes.map((node, index) => ({
-              id: node.id,
-              type: "agent" as const,
-              position: node.position,
-              data: buildNodeData(node.agentId, parsed.agents || [], parsed.hookBindings || [], index),
-            })),
+            parsed.nodes.map((node) => {
+              if (node.type === "hook" && node.hookBindingId) {
+                const binding = allBindings.find((b) => b.id === node.hookBindingId)
+                const hookData: HookNodeData = {
+                  hookBindingId: node.hookBindingId,
+                  event: binding?.event || "PreToolUse",
+                  matcher: binding?.matcher,
+                  ifCondition: binding?.ifCondition,
+                  handlerType: binding?.handlerType || "command",
+                }
+                return {
+                  id: node.id,
+                  type: "hook" as const,
+                  position: node.position,
+                  data: hookData,
+                }
+              }
+              const data = buildNodeData(node.agentId, parsed.agents || [], allBindings, agentIndex)
+              agentIndex++
+              return {
+                id: node.id,
+                type: "agent" as const,
+                position: node.position,
+                data,
+              }
+            }),
           )
           setSelectedNodeId(parsed.nodes[0]?.id || null)
         }
@@ -189,8 +213,9 @@ export function WorkflowStudio() {
               source: e.source,
               target: e.target,
               label: e.label,
-              animated: true,
-              style: { strokeWidth: 2 },
+              animated: e.animated !== false,
+              style: e.style ? (e.style as React.CSSProperties) : { strokeWidth: 2 },
+              labelStyle: e.labelStyle ? (e.labelStyle as React.CSSProperties) : undefined,
             })),
           )
         }
@@ -214,7 +239,9 @@ export function WorkflowStudio() {
       hookBindings,
       nodes: nodes.map((n) => ({
         id: n.id,
-        agentId: (n.data as AgentNodeData).agentId,
+        agentId: n.type === "hook" ? "" : (n.data as AgentNodeData).agentId,
+        type: (n.type as "agent" | "hook") || "agent",
+        hookBindingId: n.type === "hook" ? (n.data as HookNodeData).hookBindingId : undefined,
         position: n.position,
       })),
       edges: edges.map((e) => ({
@@ -222,6 +249,9 @@ export function WorkflowStudio() {
         source: e.source,
         target: e.target,
         label: e.label as string | undefined,
+        style: e.style as Record<string, unknown> | undefined,
+        animated: e.animated,
+        labelStyle: e.labelStyle as Record<string, unknown> | undefined,
       })),
       settings,
     }
@@ -236,9 +266,10 @@ export function WorkflowStudio() {
       agents,
       scripts,
       hookBindings,
-      nodes: nodes.map((n) => ({
+      nodes: nodes.filter((n) => n.type !== "hook").map((n) => ({
         id: n.id,
         agentId: (n.data as AgentNodeData).agentId,
+        type: "agent" as const,
         position: n.position,
       })),
       edges: edges.map((e) => ({
@@ -256,18 +287,49 @@ export function WorkflowStudio() {
 
   // Derive selected agent from selected node
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) || null
-  const selectedAgentId = selectedNode ? (selectedNode.data as AgentNodeData).agentId : null
+  const isHookNodeSelected = selectedNode?.type === "hook"
+  const selectedAgentId = selectedNode && !isHookNodeSelected ? (selectedNode.data as AgentNodeData).agentId : null
   const selectedAgent = selectedAgentId ? agents.find((item) => item.id === selectedAgentId) || null : null
   const selectedBindings = selectedAgent ? hookBindings.filter((binding) => binding.agentId === selectedAgent.id) : []
   const selectedScripts = selectedAgent
     ? scripts.filter((script) => selectedBindings.some((binding) => binding.scriptId === script.id))
     : []
 
+  // Derive selected hook binding (when a hook node is selected)
+  const selectedHookBinding = isHookNodeSelected
+    ? hookBindings.find((b) => b.id === (selectedNode.data as HookNodeData).hookBindingId) || null
+    : null
+  const selectedHookCatalogItem = selectedHookBinding
+    ? HOOK_CATALOG.find((item) => item.event === selectedHookBinding.event)
+    : null
+
   // Sync node data when agents or hookBindings change
   useEffect(() => {
     if (!loaded) return
     setNodes((prevNodes) =>
       prevNodes.map((node, index) => {
+        if (node.type === "hook") {
+          // Sync hook node data from its binding
+          const hookData = node.data as HookNodeData
+          const binding = hookBindings.find((b) => b.id === hookData.hookBindingId)
+          if (!binding) return node
+          const newData: HookNodeData = {
+            hookBindingId: hookData.hookBindingId,
+            event: binding.event,
+            matcher: binding.matcher,
+            ifCondition: binding.ifCondition,
+            handlerType: binding.handlerType,
+          }
+          if (
+            hookData.event === newData.event &&
+            hookData.matcher === newData.matcher &&
+            hookData.ifCondition === newData.ifCondition &&
+            hookData.handlerType === newData.handlerType
+          ) {
+            return node
+          }
+          return { ...node, data: newData }
+        }
         const agentId = (node.data as AgentNodeData).agentId
         const newData = buildNodeData(agentId, agents, hookBindings, index)
         const oldData = node.data as AgentNodeData
@@ -289,9 +351,54 @@ export function WorkflowStudio() {
   const onConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return
-      setEdges((eds) => addEdge({ ...connection, id: makeId("edge"), animated: true, style: { strokeWidth: 2 } }, eds))
+
+      const sourceNode = nodes.find((n) => n.id === connection.source)
+      const targetNode = nodes.find((n) => n.id === connection.target)
+      if (!sourceNode || !targetNode) return
+
+      // Calculate midpoint between source and target
+      const midX = (sourceNode.position.x + targetNode.position.x) / 2
+      const midY = (sourceNode.position.y + targetNode.position.y) / 2
+
+      // Determine the source agent ID for the hook binding
+      const sourceAgentId = (sourceNode.data as AgentNodeData).agentId
+      const defaultEvent: ClaudeHookEvent = "PreToolUse"
+
+      // Create a new HookBinding
+      const bindingId = makeId("binding")
+      const binding: HookBinding = {
+        id: bindingId,
+        agentId: sourceAgentId,
+        event: defaultEvent,
+        handlerType: "command",
+        placement: getPlacementForEvent(defaultEvent),
+      }
+      setHookBindings((prev) => [...prev, binding])
+
+      // Create the hook node at the midpoint
+      const hookNodeId = makeId("hook-node")
+      const hookNodeData: HookNodeData = {
+        hookBindingId: bindingId,
+        event: defaultEvent,
+        handlerType: "command",
+      }
+      const hookNode: Node = {
+        id: hookNodeId,
+        type: "hook",
+        position: { x: midX, y: midY },
+        data: hookNodeData,
+      }
+
+      // Create two edges: source agent -> hook, hook -> target agent
+      const edgeStyle = { strokeWidth: 2 }
+      setNodes((prev) => [...prev, hookNode])
+      setEdges((eds) => [
+        ...eds,
+        { id: makeId("edge"), source: connection.source!, target: hookNodeId, animated: true, style: edgeStyle },
+        { id: makeId("edge"), source: hookNodeId, target: connection.target!, animated: true, style: edgeStyle },
+      ])
     },
-    [setEdges],
+    [nodes, setNodes, setEdges, setHookBindings],
   )
 
   const resetTemplate = () => {
@@ -347,7 +454,7 @@ export function WorkflowStudio() {
       })
 
       setNodes((prev) => {
-        const newNode: Node<AgentNodeData> = {
+        const newNode: Node = {
           id: makeId("node"),
           type: "agent",
           position,
@@ -455,6 +562,42 @@ export function WorkflowStudio() {
     setEdges((prev) => prev.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id))
     setSelectedNodeId(null)
   }, [selectedNode, setNodes, setEdges])
+
+  const onNodesDelete = useCallback(
+    (deletedNodes: Node[]) => {
+      for (const node of deletedNodes) {
+        if (node.type === "hook") {
+          const hookData = node.data as HookNodeData
+          // Remove the associated HookBinding
+          setHookBindings((prev) => prev.filter((b) => b.id !== hookData.hookBindingId))
+
+          // Find the incoming edge (something -> hook) and outgoing edge (hook -> something)
+          const incomingEdge = edges.find((e) => e.target === node.id)
+          const outgoingEdge = edges.find((e) => e.source === node.id)
+
+          if (incomingEdge && outgoingEdge) {
+            // Replace the two edges with a single warning edge from source agent -> target agent
+            setEdges((prev) => {
+              const filtered = prev.filter((e) => e.id !== incomingEdge.id && e.id !== outgoingEdge.id)
+              return [
+                ...filtered,
+                {
+                  id: makeId("edge"),
+                  source: incomingEdge.source,
+                  target: outgoingEdge.target,
+                  animated: false,
+                  style: { stroke: "#f97316", strokeWidth: 2 },
+                  label: "No hook enforces this connection",
+                  labelStyle: { fill: "#f97316", fontWeight: 500 },
+                },
+              ]
+            })
+          }
+        }
+      }
+    },
+    [edges, setEdges, setHookBindings],
+  )
 
   const copyFile = async (path: string, content: string) => {
     await navigator.clipboard.writeText(content)
@@ -658,6 +801,7 @@ export function WorkflowStudio() {
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
+                onNodesDelete={onNodesDelete}
                 onNodeClick={(_, node) => {
                   setSelectedNodeId(node.id)
                   setInspectorTab("overview")
@@ -688,13 +832,188 @@ export function WorkflowStudio() {
 
           <AnimatePresence mode="wait">
             <motion.div
-              key={selectedAgent?.id || "empty-panel"}
+              key={selectedAgent?.id || selectedHookBinding?.id || "empty-panel"}
               initial={{ opacity: 0, x: 12 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 12 }}
               className="flex min-h-0 flex-col gap-4"
             >
-              {selectedAgent ? (
+              {isHookNodeSelected && selectedHookBinding ? (
+              <Card className="border-amber-500/20 bg-white/[0.04]">
+                <CardHeader className="gap-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-amber-300">
+                        <Anchor className="size-5" /> Hook: {selectedHookBinding.event}
+                      </CardTitle>
+                      <CardDescription>Configure the hook binding inserted between two agents.</CardDescription>
+                    </div>
+                    <Button variant="danger" size="sm" onClick={removeSelectedNode}>
+                      <Trash2 className="size-4" /> Remove
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4 overflow-y-auto max-h-[calc(100vh-15rem)]">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-slate-400">Event type</label>
+                      <select
+                        className="h-10 w-full rounded-2xl border border-border/60 bg-background/60 px-3 text-sm outline-none focus:border-amber-400/60"
+                        value={selectedHookBinding.event}
+                        onChange={(event) => {
+                          const newEvent = event.target.value as ClaudeHookEvent
+                          setHookBindings((prev) =>
+                            prev.map((b) =>
+                              b.id === selectedHookBinding.id
+                                ? { ...b, event: newEvent, placement: getPlacementForEvent(newEvent) }
+                                : b,
+                            ),
+                          )
+                        }}
+                      >
+                        {HOOK_CATALOG.map((item) => (
+                          <option key={item.event} value={item.event}>
+                            {item.event}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-slate-400">Handler type</label>
+                      <select
+                        className="h-10 w-full rounded-2xl border border-border/60 bg-background/60 px-3 text-sm outline-none focus:border-amber-400/60"
+                        value={selectedHookBinding.handlerType}
+                        onChange={(event) => {
+                          setHookBindings((prev) =>
+                            prev.map((b) =>
+                              b.id === selectedHookBinding.id
+                                ? { ...b, handlerType: event.target.value as HookBinding["handlerType"] }
+                                : b,
+                            ),
+                          )
+                        }}
+                      >
+                        <option value="command">command</option>
+                        <option value="prompt">prompt</option>
+                        <option value="agent">agent</option>
+                        <option value="http">http</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                    Placement: {selectedHookBinding.placement} · {selectedHookCatalogItem?.description || "Unknown event"}
+                  </div>
+
+                  {selectedHookCatalogItem?.supportsMatcher ? (
+                    <div>
+                      <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-slate-400">Matcher</label>
+                      <Input
+                        value={selectedHookBinding.matcher || ""}
+                        onChange={(event) =>
+                          setHookBindings((prev) =>
+                            prev.map((b) =>
+                              b.id === selectedHookBinding.id ? { ...b, matcher: event.target.value || undefined } : b,
+                            ),
+                          )
+                        }
+                        placeholder="Bash · Edit|Write · agent-name"
+                      />
+                    </div>
+                  ) : null}
+
+                  <div>
+                    <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-slate-400">If condition</label>
+                    <Input
+                      value={selectedHookBinding.ifCondition || ""}
+                      onChange={(event) =>
+                        setHookBindings((prev) =>
+                          prev.map((b) =>
+                            b.id === selectedHookBinding.id ? { ...b, ifCondition: event.target.value || undefined } : b,
+                          ),
+                        )
+                      }
+                      placeholder="$event.tool_name == 'Bash'"
+                    />
+                  </div>
+
+                  {selectedHookBinding.handlerType === "command" ? (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-slate-400">Script</label>
+                        <select
+                          className="h-10 w-full rounded-2xl border border-border/60 bg-background/60 px-3 text-sm outline-none focus:border-amber-400/60"
+                          value={selectedHookBinding.scriptId || ""}
+                          onChange={(event) =>
+                            setHookBindings((prev) =>
+                              prev.map((b) =>
+                                b.id === selectedHookBinding.id ? { ...b, scriptId: event.target.value || undefined } : b,
+                              ),
+                            )
+                          }
+                        >
+                          <option value="">Inline command instead of file</option>
+                          {scripts.map((script) => (
+                            <option key={script.id} value={script.id}>
+                              {script.fileName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {!selectedHookBinding.scriptId ? (
+                        <div>
+                          <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-slate-400">Command</label>
+                          <Textarea
+                            value={selectedHookBinding.commandText || ""}
+                            onChange={(event) =>
+                              setHookBindings((prev) =>
+                                prev.map((b) =>
+                                  b.id === selectedHookBinding.id ? { ...b, commandText: event.target.value || undefined } : b,
+                                ),
+                              )
+                            }
+                            className="min-h-[110px] font-mono text-[12px]"
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {selectedHookBinding.handlerType === "prompt" || selectedHookBinding.handlerType === "agent" ? (
+                    <div>
+                      <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-slate-400">Prompt</label>
+                      <Textarea
+                        value={selectedHookBinding.promptText || ""}
+                        onChange={(event) =>
+                          setHookBindings((prev) =>
+                            prev.map((b) =>
+                              b.id === selectedHookBinding.id ? { ...b, promptText: event.target.value || undefined } : b,
+                            ),
+                          )
+                        }
+                        className="min-h-[120px]"
+                      />
+                    </div>
+                  ) : null}
+
+                  {selectedHookBinding.handlerType === "http" ? (
+                    <div>
+                      <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-slate-400">URL</label>
+                      <Input
+                        value={selectedHookBinding.url || ""}
+                        onChange={(event) =>
+                          setHookBindings((prev) =>
+                            prev.map((b) =>
+                              b.id === selectedHookBinding.id ? { ...b, url: event.target.value || undefined } : b,
+                            ),
+                          )
+                        }
+                      />
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+              ) : selectedAgent ? (
               <Card className="border-white/10 bg-white/[0.04]">
                 <CardHeader className="gap-4">
                   <div className="flex items-start justify-between gap-4">
