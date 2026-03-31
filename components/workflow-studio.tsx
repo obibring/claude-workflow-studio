@@ -417,6 +417,19 @@ export function WorkflowStudio() {
       const targetNode = nodes.find((n) => n.id === connection.target)
       if (!sourceNode || !targetNode) return
 
+      // Only insert a hook node between two agent nodes
+      const bothAgents = sourceNode.type === "agent" && targetNode.type === "agent"
+
+      if (!bothAgents) {
+        // Direct edge (hook→agent, agent→hook, hook→hook)
+        const edgeStyle = { strokeWidth: 2 }
+        setEdges((eds) => [
+          ...eds,
+          { id: makeId("edge"), source: connection.source!, target: connection.target!, animated: true, style: edgeStyle },
+        ])
+        return
+      }
+
       // Calculate midpoint between source and target
       const midX = (sourceNode.position.x + targetNode.position.x) / 2
       const midY = (sourceNode.position.y + targetNode.position.y) / 2
@@ -588,11 +601,90 @@ export function WorkflowStudio() {
   }
 
   const createAgent = useCallback(() => {
-    setAgents((prev) => {
-      const agent = createAgentAsset(`agent-${prev.length + 1}`)
-      return [...prev, agent]
-    })
-  }, [])
+    const agent = createAgentAsset(`agent-${agents.length + 1}`)
+    setAgents((prev) => [...prev, agent])
+
+    const HOOK_WIDTH = 220
+    const AGENT_WIDTH = 300
+    const SPACING = 60
+    const AGENT_TO_AGENT_GAP = AGENT_WIDTH + HOOK_WIDTH + SPACING * 3
+    const HOOK_OFFSET = AGENT_WIDTH + SPACING
+    const lastNode = nodes.length > 0 ? nodes[nodes.length - 1] : null
+    const baseY = lastNode ? lastNode.position.y : 180
+    const baseX = lastNode ? lastNode.position.x + AGENT_TO_AGENT_GAP : 120
+
+    const newNodeId = makeId("node")
+    const newNode: Node = {
+      id: newNodeId,
+      type: "agent",
+      position: { x: baseX, y: baseY },
+      selected: true,
+      data: buildNodeData(agent.id, [...agents, agent], hookBindings, nodes.length),
+    }
+
+    if (!lastNode) {
+      // First node — just place it
+      setNodes([newNode])
+      setSelectedNodeId(newNodeId)
+      setInspectorTab("overview")
+      return
+    }
+
+    const lastIsHook = lastNode.type === "hook"
+    const edgeStyle = { strokeWidth: 2 }
+
+    if (lastIsHook) {
+      // Last node is a hook — connect directly
+      setNodes((prev) => [
+        ...prev.map((n) => ({ ...n, selected: false })),
+        { ...newNode, position: { x: lastNode.position.x + HOOK_WIDTH + SPACING * 2, y: baseY } },
+      ])
+      setEdges((eds) => [
+        ...eds,
+        { id: makeId("edge"), source: lastNode.id, target: newNodeId, animated: true, style: edgeStyle },
+      ])
+      setSelectedNodeId(newNodeId)
+      setInspectorTab("overview")
+    } else {
+      // Last node is an agent — insert a hook between them
+      const lastAgentId = (lastNode.data as AgentNodeData).agentId
+      const defaultEvent: ClaudeHookEvent = "PreToolUse"
+      const bindingId = makeId("binding")
+      const binding: HookBinding = {
+        id: bindingId,
+        agentId: lastAgentId,
+        event: defaultEvent,
+        handlerType: "command",
+        placement: getPlacementForEvent(defaultEvent),
+      }
+      setHookBindings((prev) => [...prev, binding])
+
+      const hookNodeId = makeId("hook-node")
+      const hookNode: Node = {
+        id: hookNodeId,
+        type: "hook",
+        position: { x: lastNode.position.x + HOOK_OFFSET, y: baseY },
+        data: {
+          hookBindingId: bindingId,
+          event: defaultEvent,
+          handlerType: "command",
+        } as HookNodeData,
+      }
+
+      setNodes((prev) => [
+        ...prev.map((n) => ({ ...n, selected: false })),
+        hookNode,
+        { ...newNode, position: { x: lastNode.position.x + AGENT_TO_AGENT_GAP, y: baseY } },
+      ])
+      setEdges((eds) => [
+        ...eds,
+        { id: makeId("edge"), source: lastNode.id, target: hookNodeId, animated: true, style: edgeStyle },
+        { id: makeId("edge"), source: hookNodeId, target: newNodeId, animated: true, style: edgeStyle },
+      ])
+      setSelectedNodeId(newNodeId)
+      setInspectorTab("overview")
+    }
+  }, [agents, nodes, hookBindings, setAgents, setNodes, setEdges, setHookBindings])
 
   const createScript = () => {
     setScripts((prev) => [
