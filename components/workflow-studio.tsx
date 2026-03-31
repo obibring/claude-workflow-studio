@@ -386,12 +386,15 @@ export function WorkflowStudio() {
         id: hookNodeId,
         type: "hook",
         position: { x: midX, y: midY },
+        selected: true,
         data: hookNodeData,
       }
 
       // Create two edges: source agent -> hook, hook -> target agent
       const edgeStyle = { strokeWidth: 2 }
-      setNodes((prev) => [...prev, hookNode])
+      setNodes((prev) => [...prev.map((n) => ({ ...n, selected: false })), hookNode])
+      setSelectedNodeId(hookNodeId)
+      setInspectorTab("overview")
       setEdges((eds) => [
         ...eds,
         { id: makeId("edge"), source: connection.source!, target: hookNodeId, animated: true, style: edgeStyle },
@@ -453,15 +456,19 @@ export function WorkflowStudio() {
         y: event.clientY,
       })
 
+      const newNodeId = makeId("node")
       setNodes((prev) => {
         const newNode: Node = {
-          id: makeId("node"),
+          id: newNodeId,
           type: "agent",
           position,
+          selected: true,
           data: buildNodeData(data.agentId, agents, hookBindings, prev.length),
         }
-        return [...prev, newNode]
+        return [...prev.map((n) => ({ ...n, selected: false })), newNode]
       })
+      setSelectedNodeId(newNodeId)
+      setInspectorTab("overview")
 
       dragDataRef.current = null
     },
