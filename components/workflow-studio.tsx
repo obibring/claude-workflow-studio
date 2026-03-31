@@ -661,10 +661,15 @@ export function WorkflowStudio() {
                 onNodeClick={(_, node) => {
                   setSelectedNodeId(node.id)
                   setInspectorTab("overview")
+                  setNodes((nds) => nds.map((n) => ({ ...n, selected: n.id === node.id })))
                 }}
-                onPaneClick={() => setSelectedNodeId(null)}
+                onPaneClick={() => {
+                  setSelectedNodeId(null)
+                  setNodes((nds) => nds.map((n) => ({ ...n, selected: false })))
+                }}
                 onDragOver={onDragOver}
                 onDrop={onDrop}
+                multiSelectionKeyCode={null}
                 fitView
                 nodeTypes={nodeTypes}
                 className="workflow-flow"
