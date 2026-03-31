@@ -52,6 +52,7 @@ import {
   addAgentNode,
   commandForScript,
   createAgentAsset,
+  createBlankAppState,
   createFivePhaseTemplate,
   createScriptAsset,
   generateBundle,
@@ -129,11 +130,10 @@ export function WorkflowStudio() {
         return
       }
     } catch {
-      // ignore corrupted state and fall back to template
+      // ignore corrupted state and fall back to blank
     }
-    const template = createFivePhaseTemplate()
-    setState(template)
-    setSelectedNodeId(template.nodes[0]?.id || null)
+    setState(createBlankAppState())
+    setSelectedNodeId(null)
   }, [])
 
   useEffect(() => {
@@ -207,7 +207,7 @@ export function WorkflowStudio() {
     (changes: EdgeChange[]) => {
       setState((current) => {
         if (!current) return current
-        const nextEdges = applyEdgeChanges(changes, current.edges as Edge[])
+        const nextEdges = applyEdgeChanges(changes, current.edges as Edge[]) as Edge[]
         return {
           ...current,
           edges: nextEdges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target, label: edge.label as string | undefined, selected: edge.selected })),

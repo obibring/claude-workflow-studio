@@ -178,7 +178,7 @@ export function createBlankAppState(): AppState {
     nodes: [],
     edges: [],
     settings: {
-      workflowName: "five-phase-build-loop",
+      workflowName: "my-workflow",
       autoGenerateWorkflowGuard: true,
       includeLifecycleScaffolds: true,
     },

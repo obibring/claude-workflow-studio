@@ -1,13 +1,15 @@
 "use client"
 
 import { memo } from "react"
-import { Handle, Position, type NodeProps } from "@xyflow/react"
+import { Handle, Position, type Node, type NodeProps } from "@xyflow/react"
 import { Activity, BrainCircuit, FileCode2, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { AgentNodeData } from "@/lib/types"
 
-export const FlowAgentNode = memo(function FlowAgentNode({ data, selected }: NodeProps<AgentNodeData>) {
+type AgentNode = Node<AgentNodeData>
+
+export const FlowAgentNode = memo(function FlowAgentNode({ data, selected }: NodeProps<AgentNode>) {
   return (
     <div
       className={cn(
