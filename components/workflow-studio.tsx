@@ -83,6 +83,7 @@ import type {
   WorkflowSettings,
 } from "@/lib/types"
 import { Navbar } from "./navbar"
+import { useStorage } from "@/lib/storage-context"
 
 const nodeTypes = { agent: FlowAgentNode, hook: FlowHookNode }
 const tabs = ["overview", "hooks", "markdown", "scripts", "output"] as const
@@ -160,6 +161,8 @@ const DEFAULT_SETTINGS: WorkflowSettings = {
 }
 
 export function WorkflowStudio() {
+  const storage = useStorage()
+
   // Domain state (no nodes/edges)
   const [agents, setAgents] = useState<readonly AgentAsset[]>([])
   const [scripts, setScripts] = useState<readonly ScriptAsset[]>([])
@@ -197,7 +200,7 @@ export function WorkflowStudio() {
   // Load from localStorage
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY)
+      const saved = storage.getItem(STORAGE_KEY)
       if (saved) {
         const parsed = JSON.parse(saved) as AppState
         setAgents(parsed.agents || [])
@@ -300,8 +303,8 @@ export function WorkflowStudio() {
       })),
       settings,
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-  }, [agents, scripts, hookBindings, settings, nodes, edges, loaded])
+    storage.setItem(STORAGE_KEY, JSON.stringify(state))
+  }, [agents, scripts, hookBindings, settings, nodes, edges, loaded, storage])
 
   // Reconstruct AppState for generateBundle and validation
   const appState = useMemo<AppState | null>(() => {
@@ -752,7 +755,7 @@ export function WorkflowStudio() {
   // Save state to localStorage (explicit button)
   const saveLocalState = () => {
     if (!appState) return
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(appState))
+    storage.setItem(STORAGE_KEY, JSON.stringify(appState))
   }
 
   if (!loaded) {
