@@ -1,3 +1,5 @@
+/** @format */
+
 export type ClaudeHookEvent =
   | "SessionStart"
   | "InstructionsLoaded"
@@ -116,13 +118,13 @@ export type GeneratedBundle = {
 }
 
 export type AppState = {
-  version: number
-  agents: AgentAsset[]
-  scripts: ScriptAsset[]
-  hookBindings: HookBinding[]
-  nodes: FlowNodeRecord[]
-  edges: FlowEdgeRecord[]
-  settings: WorkflowSettings
+  readonly version: number
+  readonly agents: readonly AgentAsset[]
+  readonly scripts: readonly ScriptAsset[]
+  readonly hookBindings: readonly HookBinding[]
+  readonly nodes: readonly FlowNodeRecord[]
+  readonly edges: readonly FlowEdgeRecord[]
+  readonly settings: WorkflowSettings
 }
 
 export type AgentNodeData = {
