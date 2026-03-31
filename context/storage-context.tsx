@@ -1,3 +1,5 @@
+/** @format */
+
 "use client"
 
 /** @format */
@@ -15,14 +17,13 @@ export function StorageProvider({
   children: React.ReactNode
 }) {
   return (
-    <StorageContext.Provider value={storage}>{children}</StorageContext.Provider>
+    <StorageContext.Provider value={storage}>
+      {children}
+    </StorageContext.Provider>
   )
 }
 
-export function useStorage(): StorageConnector {
+export function useStorage(): StorageConnector | null {
   const ctx = useContext(StorageContext)
-  if (!ctx) {
-    throw new Error("useStorage must be used within a <StorageProvider>")
-  }
   return ctx
 }

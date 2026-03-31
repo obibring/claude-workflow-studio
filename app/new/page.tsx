@@ -3,23 +3,23 @@
 
 import { redirect, useParams } from "next/navigation"
 import { ReactFlowProvider } from "@xyflow/react"
-import { WorkflowStudio } from "@/components/workflow-studio"
 import { ProjectsProvider } from "@/context/projects-context"
-import { useStorage } from "@/context/storage-context"
-import { Project } from "@/lib/types"
+import { Navbar } from "@/components/navbar"
+import { ProjectForm } from "@/components/project-form"
 
 export default function ProjectPage() {
-  let { projectPath } = useParams<{ projectPath: string | undefined }>()
-  projectPath = projectPath ? decodeURIComponent(projectPath) : undefined
+  const { projectPath } = useParams<{ projectPath: string }>()
+
   return (
     <ReactFlowProvider>
       <ProjectsProvider
-        selectedProjectPath={projectPath ?? null}
+        selectedProjectPath={projectPath}
         setSelectedProjectPath={(path) => {
           redirect(`/project/${path}`)
         }}
       >
-        <WorkflowStudio />
+        <Navbar showActions={false} />
+        <ProjectForm />
       </ProjectsProvider>
     </ReactFlowProvider>
   )

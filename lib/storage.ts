@@ -19,14 +19,14 @@ export class LocalStorageConnector implements StorageConnector {
   constructor(private readonly prefix: string) {}
 
   getItem(key: string): string | null {
-    return localStorage.getItem(this.prefix + key)
+    return globalThis.localStorage?.getItem(this.prefix + key)
   }
 
   setItem(key: string, value: string): void {
-    localStorage.setItem(this.prefix + key, value)
+    globalThis.localStorage?.setItem(this.prefix + key, value)
   }
 
   removeItem(key: string): void {
-    localStorage.removeItem(this.prefix + key)
+    globalThis.localStorage?.removeItem(this.prefix + key)
   }
 }

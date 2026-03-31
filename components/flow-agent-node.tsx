@@ -43,7 +43,7 @@ export const FlowAgentNode = memo(function FlowAgentNode({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 text-[11px] text-slate-300">
+        {/* <div className="grid grid-cols-3 gap-2 text-[11px] text-slate-300">
           <div className="rounded-2xl border border-white/8 bg-white/5 p-2">
             <div className="mb-1 flex items-center gap-1 text-slate-400">
               <Activity className="size-3.5" /> Hooks
@@ -66,18 +66,18 @@ export const FlowAgentNode = memo(function FlowAgentNode({
             </div>
             <div className="text-sm font-semibold text-emerald-300">Design</div>
           </div>
-        </div>
+        </div> */}
       </div>
 
       <Handle
         type="target"
         position={Position.Left}
-        className="!size-3 !border-2 !border-white !bg-primary"
+        className="size-3! border-2! border-white! bg-primary!"
       />
       <Handle
         type="source"
         position={Position.Right}
-        className="!size-3 !border-2 !border-white !bg-primary"
+        className="size-3! border-2! border-white! bg-primary!"
       />
     </div>
   )

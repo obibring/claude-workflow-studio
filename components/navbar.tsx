@@ -9,11 +9,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Sparkles } from "lucide-react"
+import { Sparkles, Trash } from "lucide-react"
 import { Wand2 } from "lucide-react"
 import { Save } from "lucide-react"
 import { Download } from "lucide-react"
 import { useProjects } from "@/context/projects-context"
+import { redirect } from "next/navigation"
+import { cn } from "@/lib/utils"
 
 export function Navbar({
   resetTemplate,
@@ -21,17 +23,36 @@ export function Navbar({
   saveLocalState,
   downloadBundle,
   generatedDownloadState,
-}: {
-  resetTemplate: () => void
-  autoLayout: () => void
-  saveLocalState: () => void
-  downloadBundle: () => void
-  generatedDownloadState: "idle" | "working" | "done"
-}) {
+  className,
+  showActions = true,
+}:
+  | {
+      className?: string
+      showActions: false
+      resetTemplate?: () => void
+      autoLayout?: () => void
+      saveLocalState?: () => void
+      downloadBundle?: () => void
+      generatedDownloadState?: "idle" | "working" | "done"
+    }
+  | {
+      className?: string
+      resetTemplate: () => void
+      autoLayout: () => void
+      saveLocalState: () => void
+      downloadBundle: () => void
+      generatedDownloadState: "idle" | "working" | "done"
+      showActions?: true
+    }) {
   const { projects, selectedProjectPath, setSelectedProjectPath } =
     useProjects()
   return (
-    <Card className="overflow-hidden border-0 bg-white/4 -m-6 rounded-none">
+    <Card
+      className={cn(
+        "overflow-hidden border-0 bg-white/4 rounded-none",
+        className,
+      )}
+    >
       <CardContent className="flex gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-col gap-2 flex-1">
           <div className="mb-2 flex items-center gap-3 text-xs uppercase tracking-[0.28em] text-primary font-semibold">
@@ -45,6 +66,9 @@ export function Navbar({
               <Select
                 value={selectedProjectPath ?? undefined}
                 onValueChange={(path) => {
+                  if (path === "new") {
+                    redirect("/new")
+                  }
                   const selectedProject = projects.find(
                     (project) => project.path === path,
                   )
@@ -66,20 +90,27 @@ export function Navbar({
             </div>
 
             <div className="flex gap-3">
-              <Button variant="outline" onClick={autoLayout}>
-                <Wand2 className="size-4" /> Auto layout
-              </Button>
-              <Button variant="outline" onClick={saveLocalState}>
-                <Save className="size-4" /> Save local state
-              </Button>
-              <Button variant="outline" onClick={downloadBundle}>
-                <Download className="size-4" />{" "}
-                {generatedDownloadState === "working"
-                  ? "Bundling…"
-                  : generatedDownloadState === "done"
-                    ? "Downloaded"
-                    : "Download zip"}
-              </Button>
+              {showActions && (
+                <>
+                  <Button variant="outline" onClick={resetTemplate}>
+                    <Trash className="size-4" /> Reset Template
+                  </Button>
+                  <Button variant="outline" onClick={autoLayout}>
+                    <Wand2 className="size-4" /> Auto layout
+                  </Button>
+                  <Button variant="outline" onClick={saveLocalState}>
+                    <Save className="size-4" /> Save local state
+                  </Button>
+                  <Button variant="outline" onClick={downloadBundle}>
+                    <Download className="size-4" />{" "}
+                    {generatedDownloadState === "working"
+                      ? "Bundling…"
+                      : generatedDownloadState === "done"
+                        ? "Downloaded"
+                        : "Download zip"}
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>

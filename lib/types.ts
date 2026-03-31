@@ -147,5 +147,7 @@ export type HookNodeData = {
 }
 
 export type Project = {
+  readonly createdAt: string
+  readonly name: string
   readonly path: string
 }

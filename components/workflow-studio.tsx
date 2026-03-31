@@ -195,7 +195,7 @@ export function WorkflowStudio() {
   // Load from localStorage
   useEffect(() => {
     try {
-      const saved = storage.getItem(STORAGE_KEY)
+      const saved = storage?.getItem(STORAGE_KEY)
       if (saved) {
         const parsed = JSON.parse(saved) as AppState
         setAgents(parsed.agents || [])
@@ -298,7 +298,7 @@ export function WorkflowStudio() {
       })),
       settings,
     }
-    storage.setItem(STORAGE_KEY, JSON.stringify(state))
+    storage?.setItem(STORAGE_KEY, JSON.stringify(state))
   }, [agents, scripts, hookBindings, settings, nodes, edges, loaded, storage])
 
   // Reconstruct AppState for generateBundle and validation
@@ -711,9 +711,19 @@ export function WorkflowStudio() {
                   source: incomingEdge.source,
                   target: outgoingEdge.target,
                   animated: false,
-                  style: { stroke: "#f97316", strokeWidth: 2 },
+                  labelBgStyle: {
+                    backgroundColor: "rgba(0,0,0,0.8)",
+                  },
+                  style: {
+                    stroke: "#f97316",
+                    strokeWidth: 2,
+                  },
                   label: "No hook enforces this connection",
-                  labelStyle: { fill: "#f97316", fontWeight: 500 },
+                  labelStyle: {
+                    fill: "#f97316",
+                    fontWeight: 500,
+                    fontSize: 14,
+                  },
                 },
               ]
             })
@@ -750,7 +760,7 @@ export function WorkflowStudio() {
   // Save state to localStorage (explicit button)
   const saveLocalState = () => {
     if (!appState) return
-    storage.setItem(STORAGE_KEY, JSON.stringify(appState))
+    storage?.setItem(STORAGE_KEY, JSON.stringify(appState))
   }
 
   if (!loaded) {
@@ -763,9 +773,10 @@ export function WorkflowStudio() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.16),transparent_24%),radial-gradient(circle_at_left,rgba(168,85,247,0.16),transparent_24%),linear-gradient(180deg,#030712_0%,#020617_100%)] text-slate-100">
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.06)_1px,transparent_1px)] bg-[size:36px_36px] opacity-20" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.06)_1px,transparent_1px)] bg-size-[36px_36px] opacity-20" />
       <div className="relative z-10 flex min-h-screen flex-col gap-4 p-5 lg:p-6">
         <Navbar
+          className="-m-6"
           resetTemplate={resetTemplate}
           autoLayout={autoLayout}
           saveLocalState={saveLocalState}
@@ -1051,7 +1062,6 @@ export function WorkflowStudio() {
                   selectedHookBinding={selectedHookBinding}
                   removeSelectedNode={removeSelectedNode}
                   setHookBindings={setHookBindings}
-                  scripts={scripts}
                 />
               ) : selectedAgent ? (
                 <Card className="border-white/10 bg-white/[0.04]">
@@ -1629,7 +1639,7 @@ export function WorkflowStudio() {
                   </CardContent>
                 </Card>
               ) : (
-                <Card className="border-white/10 bg-white/[0.04]">
+                <Card className="border-white/10 bg-white/4">
                   <CardContent className="flex items-center justify-center h-full min-h-[200px] text-muted-foreground">
                     <p>Select a node on the canvas to inspect it</p>
                   </CardContent>
