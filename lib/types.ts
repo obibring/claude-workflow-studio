@@ -145,3 +145,7 @@ export type HookNodeData = {
   handlerType: string
   [key: string]: unknown
 }
+
+export type Project = {
+  readonly path: string
+}

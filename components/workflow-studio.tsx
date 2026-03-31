@@ -82,6 +82,7 @@ import type {
   ScriptAsset,
   WorkflowSettings,
 } from "@/lib/types"
+import { Navbar } from "./navbar"
 
 const nodeTypes = { agent: FlowAgentNode, hook: FlowHookNode }
 const tabs = ["overview", "hooks", "markdown", "scripts", "output"] as const
@@ -766,44 +767,13 @@ export function WorkflowStudio() {
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.16),transparent_24%),radial-gradient(circle_at_left,rgba(168,85,247,0.16),transparent_24%),linear-gradient(180deg,#030712_0%,#020617_100%)] text-slate-100">
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.06)_1px,transparent_1px)] bg-[size:36px_36px] opacity-20" />
       <div className="relative z-10 flex min-h-screen flex-col gap-4 p-5 lg:p-6">
-        <Card className="overflow-hidden border-white/10 bg-white/[0.04]">
-          <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.28em] text-primary">
-                <Sparkles className="size-4" /> Claude Workflow Studio
-              </div>
-              <h1 className="text-3xl font-semibold tracking-tight text-white">
-                Design subagent workflows that generate valid Claude Code hooks.
-              </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-300">
-                Local-first Next.js 16 + shadcn workflow builder. Upload agent
-                markdown, attach hooks visually, inspect scripts side-by-side,
-                and export a clean .claude bundle with agent frontmatter,
-                settings.json, workflow manifest, and scaffolding scripts.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="outline" onClick={resetTemplate}>
-                <LayoutTemplate className="size-4" /> Five-phase template
-              </Button>
-              <Button variant="outline" onClick={autoLayout}>
-                <Wand2 className="size-4" /> Auto layout
-              </Button>
-              <Button variant="outline" onClick={saveLocalState}>
-                <Save className="size-4" /> Save local state
-              </Button>
-              <Button onClick={downloadBundle}>
-                <Download className="size-4" />{" "}
-                {generatedDownloadState === "working"
-                  ? "Bundling…"
-                  : generatedDownloadState === "done"
-                    ? "Downloaded"
-                    : "Download zip"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
+        <Navbar
+          resetTemplate={resetTemplate}
+          autoLayout={autoLayout}
+          saveLocalState={saveLocalState}
+          downloadBundle={downloadBundle}
+          generatedDownloadState={generatedDownloadState}
+        />
         <div className="grid min-h-[calc(100vh-10rem)] grid-cols-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)_420px]">
           <div className="space-y-4">
             <Card className="border-white/10 bg-white/[0.04]">
