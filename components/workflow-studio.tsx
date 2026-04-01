@@ -1228,9 +1228,7 @@ export function WorkflowStudio() {
                                 <SelectItem value="inherit">inherit</SelectItem>
                                 <SelectItem value="haiku">haiku</SelectItem>
                                 <SelectItem value="sonnet">sonnet</SelectItem>
-                                <SelectItem value="sonnet[1m]">sonnet[1m]</SelectItem>
                                 <SelectItem value="opus">opus</SelectItem>
-                                <SelectItem value="opus[1m]">opus[1m]</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
