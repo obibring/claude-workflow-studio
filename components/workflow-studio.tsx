@@ -50,7 +50,12 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -82,7 +87,7 @@ import { Navbar } from "./navbar"
 import { useStorage } from "@/context/storage-context"
 
 const nodeTypes = { agent: FlowAgentNode, hook: FlowHookNode }
-const tabs = ["overview", "hooks", "markdown", "scripts", "output"] as const
+const tabs = ["overview", "hooks", "markdown", "output"] as const
 
 type InspectorTab = (typeof tabs)[number]
 
@@ -103,7 +108,7 @@ function readTextFiles(fileList: FileList) {
 
 function metricCard(title: string, value: number | string, hint: string) {
   return (
-    <div className="rounded-[28px] border border-white/8 bg-white/5 p-4 shadow-inner shadow-white/5 backdrop-blur-sm">
+    <div className="rounded-lg border border-white/8 bg-white/5 p-4 shadow-inner shadow-white/5 backdrop-blur-sm">
       <div className="text-xs uppercase tracking-[0.24em] text-slate-400">
         {title}
       </div>
@@ -347,11 +352,6 @@ export function WorkflowStudio() {
   const selectedBindings = selectedAgent
     ? hookBindings.filter((binding) => binding.agentId === selectedAgent.id)
     : []
-  const selectedScripts = selectedAgent
-    ? scripts.filter((script) =>
-        selectedBindings.some((binding) => binding.scriptId === script.id),
-      )
-    : []
 
   // Derive selected hook binding (when a hook node is selected)
   const selectedHookBinding = isHookNodeSelected
@@ -419,14 +419,21 @@ export function WorkflowStudio() {
       if (!sourceNode || !targetNode) return
 
       // Only insert a hook node between two agent nodes
-      const bothAgents = sourceNode.type === "agent" && targetNode.type === "agent"
+      const bothAgents =
+        sourceNode.type === "agent" && targetNode.type === "agent"
 
       if (!bothAgents) {
         // Direct edge (hook→agent, agent→hook, hook→hook)
         const edgeStyle = { strokeWidth: 2 }
         setEdges((eds) => [
           ...eds,
-          { id: makeId("edge"), source: connection.source!, target: connection.target!, animated: true, style: edgeStyle },
+          {
+            id: makeId("edge"),
+            source: connection.source!,
+            target: connection.target!,
+            animated: true,
+            style: edgeStyle,
+          },
         ])
         return
       }
@@ -620,7 +627,12 @@ export function WorkflowStudio() {
       type: "agent",
       position: { x: baseX, y: baseY },
       selected: true,
-      data: buildNodeData(agent.id, [...agents, agent], hookBindings, nodes.length),
+      data: buildNodeData(
+        agent.id,
+        [...agents, agent],
+        hookBindings,
+        nodes.length,
+      ),
     }
 
     if (!lastNode) {
@@ -638,11 +650,23 @@ export function WorkflowStudio() {
       // Last node is a hook — connect directly
       setNodes((prev) => [
         ...prev.map((n) => ({ ...n, selected: false })),
-        { ...newNode, position: { x: lastNode.position.x + HOOK_WIDTH + SPACING * 2, y: baseY } },
+        {
+          ...newNode,
+          position: {
+            x: lastNode.position.x + HOOK_WIDTH + SPACING * 2,
+            y: baseY,
+          },
+        },
       ])
       setEdges((eds) => [
         ...eds,
-        { id: makeId("edge"), source: lastNode.id, target: newNodeId, animated: true, style: edgeStyle },
+        {
+          id: makeId("edge"),
+          source: lastNode.id,
+          target: newNodeId,
+          animated: true,
+          style: edgeStyle,
+        },
       ])
       setSelectedNodeId(newNodeId)
       setInspectorTab("overview")
@@ -675,17 +699,40 @@ export function WorkflowStudio() {
       setNodes((prev) => [
         ...prev.map((n) => ({ ...n, selected: false })),
         hookNode,
-        { ...newNode, position: { x: lastNode.position.x + AGENT_TO_AGENT_GAP, y: baseY } },
+        {
+          ...newNode,
+          position: { x: lastNode.position.x + AGENT_TO_AGENT_GAP, y: baseY },
+        },
       ])
       setEdges((eds) => [
         ...eds,
-        { id: makeId("edge"), source: lastNode.id, target: hookNodeId, animated: true, style: edgeStyle },
-        { id: makeId("edge"), source: hookNodeId, target: newNodeId, animated: true, style: edgeStyle },
+        {
+          id: makeId("edge"),
+          source: lastNode.id,
+          target: hookNodeId,
+          animated: true,
+          style: edgeStyle,
+        },
+        {
+          id: makeId("edge"),
+          source: hookNodeId,
+          target: newNodeId,
+          animated: true,
+          style: edgeStyle,
+        },
       ])
       setSelectedNodeId(newNodeId)
       setInspectorTab("overview")
     }
-  }, [agents, nodes, hookBindings, setAgents, setNodes, setEdges, setHookBindings])
+  }, [
+    agents,
+    nodes,
+    hookBindings,
+    setAgents,
+    setNodes,
+    setEdges,
+    setHookBindings,
+  ])
 
   const createScript = () => {
     setScripts((prev) => [
@@ -960,7 +1007,7 @@ export function WorkflowStudio() {
                             setInspectorTab("overview")
                           }
                         }}
-                        className="cursor-grab active:cursor-grabbing rounded-[22px] border border-white/8 bg-white/[0.045] p-3 text-left transition hover:border-primary/40 hover:bg-white/[0.07]"
+                        className="cursor-grab active:cursor-grabbing rounded-lg border border-white/8 bg-white/[0.045] p-3 text-left transition hover:border-primary/40 hover:bg-white/[0.07]"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
@@ -1002,7 +1049,7 @@ export function WorkflowStudio() {
                     {scripts.map((script) => (
                       <div
                         key={script.id}
-                        className="rounded-[20px] border border-white/8 bg-white/[0.04] p-3"
+                        className="rounded-md border border-white/8 bg-white/4 p-3"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
@@ -1025,7 +1072,7 @@ export function WorkflowStudio() {
               </CardContent>
             </Card>
 
-            <Card className="border-white/10 bg-white/[0.04]">
+            <Card className="border-white/10 bg-white/4">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-white">
                   <CircuitBoard className="size-5 text-primary" /> Health
@@ -1119,11 +1166,11 @@ export function WorkflowStudio() {
               >
                 <Background color="rgba(148,163,184,0.18)" gap={26} />
                 <MiniMap
-                  className="!rounded-3xl !border !border-white/8 !bg-slate-950/70 !backdrop-blur"
+                  className="rounded-lg border! border-white/8! bg-slate-950/70! backdrop-blur!"
                   pannable
                   zoomable
                 />
-                <Controls className="!rounded-2xl !border !border-white/8 !bg-slate-950/70 !text-slate-200 !shadow-xl !backdrop-blur" />
+                <Controls className="rounded-lg border! border-white/8! bg-slate-950/70! text-slate-200! shadow-xl backdrop-blur!" />
                 <Panel position="top-left">
                   <div className="flex items-center gap-2 rounded-full border border-white/8 bg-slate-950/70 px-3 py-2 text-xs text-slate-300 backdrop-blur">
                     <ArrowRight className="size-3.5 text-primary" /> Connect
@@ -1157,7 +1204,7 @@ export function WorkflowStudio() {
                   setHookBindings={setHookBindings}
                 />
               ) : selectedAgent ? (
-                <Card className="border-white/10 bg-white/[0.04]">
+                <Card className="border-white/10 bg-white/4">
                   <CardHeader className="gap-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
@@ -1219,7 +1266,9 @@ export function WorkflowStudio() {
                             </label>
                             <Select
                               value={selectedAgent.model}
-                              onValueChange={(value) => updateSelectedAgent({ model: value })}
+                              onValueChange={(value) =>
+                                updateSelectedAgent({ model: value })
+                              }
                             >
                               <SelectTrigger className="h-10 w-full rounded-md border border-border/60 bg-background/60 px-3 text-sm outline-none focus:border-primary/60">
                                 {selectedAgent.model}
@@ -1318,14 +1367,19 @@ export function WorkflowStudio() {
                                 </label>
                                 <Select
                                   value={newHookEvent}
-                                  onValueChange={(v) => setNewHookEvent(v as ClaudeHookEvent)}
+                                  onValueChange={(v) =>
+                                    setNewHookEvent(v as ClaudeHookEvent)
+                                  }
                                 >
                                   <SelectTrigger className="h-10 w-full rounded-md border border-border/60 bg-background/60 px-3 text-sm outline-none focus:border-primary/60">
                                     {newHookEvent}
                                   </SelectTrigger>
                                   <SelectContent className="bg-black/90">
                                     {HOOK_CATALOG.map((item) => (
-                                      <SelectItem key={item.event} value={item.event}>
+                                      <SelectItem
+                                        key={item.event}
+                                        value={item.event}
+                                      >
                                         {item.event}
                                       </SelectItem>
                                     ))}
@@ -1338,14 +1392,22 @@ export function WorkflowStudio() {
                                 </label>
                                 <Select
                                   value={newHookType}
-                                  onValueChange={(v) => setNewHookType(v as HookBinding["handlerType"])}
+                                  onValueChange={(v) =>
+                                    setNewHookType(
+                                      v as HookBinding["handlerType"],
+                                    )
+                                  }
                                 >
                                   <SelectTrigger className="h-10 w-full rounded-md border border-border/60 bg-background/60 px-3 text-sm outline-none focus:border-primary/60">
                                     {newHookType}
                                   </SelectTrigger>
                                   <SelectContent className="bg-black/90">
-                                    <SelectItem value="command">command</SelectItem>
-                                    <SelectItem value="prompt">prompt</SelectItem>
+                                    <SelectItem value="command">
+                                      command
+                                    </SelectItem>
+                                    <SelectItem value="prompt">
+                                      prompt
+                                    </SelectItem>
                                     <SelectItem value="agent">agent</SelectItem>
                                     <SelectItem value="http">http</SelectItem>
                                   </SelectContent>
@@ -1384,7 +1446,7 @@ export function WorkflowStudio() {
                                     Script
                                   </label>
                                   <select
-                                    className="h-10 w-full rounded-2xl border border-border/60 bg-background/60 px-3 text-sm outline-none focus:border-primary/60"
+                                    className="h-10 w-full rounded-lg border border-border/60 bg-background/60 px-3 text-sm outline-none focus:border-primary/60"
                                     value={newHookScriptId}
                                     onChange={(event) =>
                                       setNewHookScriptId(event.target.value)
@@ -1465,7 +1527,7 @@ export function WorkflowStudio() {
                               return (
                                 <div
                                   key={binding.id}
-                                  className="rounded-[24px] border border-white/8 bg-white/[0.035] p-4"
+                                  className="rounded-lg border border-white/8 bg-white/[0.035] p-4"
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
@@ -1504,7 +1566,7 @@ export function WorkflowStudio() {
                               )
                             })
                           ) : (
-                            <div className="rounded-[24px] border border-dashed border-white/12 p-6 text-center text-sm text-slate-400">
+                            <div className="rounded-lg border border-dashed border-white/12 p-6 text-center text-sm text-slate-400">
                               No hooks attached yet. Start with PreToolUse,
                               Stop, SubagentStart, or SubagentStop to build a
                               serious workflow gate.
@@ -1516,7 +1578,7 @@ export function WorkflowStudio() {
 
                     {selectedAgent && inspectorTab === "markdown" ? (
                       <div className="space-y-3">
-                        <div className="rounded-[28px] border border-white/8 bg-slate-950/70 p-4">
+                        <div className="rounded-lg border border-white/8 bg-slate-950/70 p-4">
                           <div className="mb-3 flex items-center justify-between gap-2">
                             <div>
                               <div className="text-sm font-semibold text-white">
@@ -1558,7 +1620,7 @@ export function WorkflowStudio() {
                               </Button>
                             </div>
                           </div>
-                          <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap rounded-[22px] border border-white/8 bg-black/40 p-4 font-mono text-[12px] leading-6 text-slate-200">
+                          <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap rounded-lg border border-white/8 bg-black/40 p-4 font-mono text-[12px] leading-6 text-slate-200">
                             {
                               generated?.files[
                                 `.claude/agents/${selectedAgent.fileName}`
@@ -1569,78 +1631,10 @@ export function WorkflowStudio() {
                       </div>
                     ) : null}
 
-                    {selectedAgent && inspectorTab === "scripts" ? (
-                      <div className="space-y-4">
-                        {selectedScripts.length ? (
-                          selectedScripts.map((script) => (
-                            <Card
-                              key={script.id}
-                              className="border-white/8 bg-white/[0.03]"
-                            >
-                              <CardHeader>
-                                <div className="flex items-center justify-between gap-3">
-                                  <div>
-                                    <CardTitle className="text-base text-white">
-                                      {script.fileName}
-                                    </CardTitle>
-                                    <CardDescription>
-                                      {commandForScript(script)}
-                                    </CardDescription>
-                                  </div>
-                                  <Badge variant="secondary">
-                                    {script.origin}
-                                  </Badge>
-                                </div>
-                              </CardHeader>
-                              <CardContent className="space-y-3">
-                                <Textarea
-                                  className="min-h-[220px] font-mono text-[12px] leading-6"
-                                  value={script.content}
-                                  onChange={(event) =>
-                                    updateScript(script.id, {
-                                      content: event.target.value,
-                                    })
-                                  }
-                                />
-                                <div className="flex justify-end gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() =>
-                                      copyFile(script.fileName, script.content)
-                                    }
-                                  >
-                                    <Copy className="size-4" /> Copy
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() =>
-                                      downloadText(
-                                        script.fileName,
-                                        script.content,
-                                      )
-                                    }
-                                  >
-                                    <Download className="size-4" /> Save
-                                  </Button>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))
-                        ) : (
-                          <div className="rounded-[24px] border border-dashed border-white/12 p-6 text-center text-sm text-slate-400">
-                            This agent does not currently reference any uploaded
-                            or inline script assets.
-                          </div>
-                        )}
-                      </div>
-                    ) : null}
-
                     {inspectorTab === "output" && generated ? (
                       <div className="space-y-4">
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">
+                          <div className="rounded-md border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">
                             <div className="mb-2 flex items-center gap-2 font-medium">
                               <CheckCircle2 className="size-4" /> Generated
                               bundle
@@ -1650,7 +1644,7 @@ export function WorkflowStudio() {
                               for export.
                             </div>
                           </div>
-                          <div className="rounded-[24px] border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">
+                          <div className="rounded-md border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">
                             <div className="mb-2 flex items-center gap-2 font-medium">
                               <TriangleAlert className="size-4" /> Validation
                             </div>
@@ -1667,7 +1661,7 @@ export function WorkflowStudio() {
                             {issues.map((issue, index) => (
                               <div
                                 key={`${issue.message}-${index}`}
-                                className="rounded-[20px] border border-white/8 bg-white/[0.035] p-3 text-sm"
+                                className="rounded-md border border-white/8 bg-white/[0.035] p-3 text-sm"
                               >
                                 <div className="flex items-center gap-2 text-white">
                                   {issue.severity === "error" ? (
@@ -1687,7 +1681,7 @@ export function WorkflowStudio() {
                             ([path, content]) => (
                               <Card
                                 key={path}
-                                className="border-white/8 bg-white/[0.03]"
+                                className="border-white/8 bg-white/3 rounded-lg"
                               >
                                 <CardHeader>
                                   <div className="flex items-center justify-between gap-3">
@@ -1703,28 +1697,32 @@ export function WorkflowStudio() {
                                             : "Project configuration"}
                                       </CardDescription>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-col gap-1">
                                       <Button
                                         size="sm"
                                         variant="outline"
                                         onClick={() => copyFile(path, content)}
+                                        className="text-foreground/80"
                                       >
-                                        <Copy className="size-4" /> Copy
+                                        <Copy className="size-4 text-foreground/80" />{" "}
+                                        Copy
                                       </Button>
                                       <Button
                                         size="sm"
+                                        className="text-foreground/80"
                                         variant="outline"
                                         onClick={() =>
                                           downloadText(path, content)
                                         }
                                       >
-                                        <Download className="size-4" /> Save
+                                        <Download className="size-4 text-foreground/80" />{" "}
+                                        Save
                                       </Button>
                                     </div>
                                   </div>
                                 </CardHeader>
                                 <CardContent>
-                                  <pre className="max-h-[260px] overflow-auto whitespace-pre-wrap rounded-[20px] border border-white/8 bg-black/40 p-4 font-mono text-[12px] leading-6 text-slate-200">
+                                  <pre className="max-h-[260px] overflow-auto whitespace-pre-wrap rounded-md border border-white/8 bg-black/40 p-4 font-mono text-[12px] leading-6 text-slate-200">
                                     {content}
                                   </pre>
                                 </CardContent>

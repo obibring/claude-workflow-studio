@@ -249,16 +249,8 @@ export function defaultScriptTemplate(fileName: string) {
   return `type HookInput = Record<string, unknown>\n\nconst input = JSON.parse(await new Response(process.stdin as any).text()) as HookInput\nvoid input\n\nprocess.stdout.write(JSON.stringify({ ok: true }, null, 2))\n`
 }
 
-export function addAgentNode(state: AppState, agentId: string) {
-  const nextIndex = state.nodes.length
-  state.nodes.push({
-    id: makeId("node"),
-    agentId,
-    position: { x: 140 + nextIndex * 140, y: 180 + (nextIndex % 3) * 120 },
-  })
-}
 
-function bindingHandlerObject(binding: HookBinding, scripts: ScriptAsset[]) {
+function bindingHandlerObject(binding: HookBinding, scripts: readonly ScriptAsset[]) {
   const base: Record<string, unknown> = { type: binding.handlerType }
   if (binding.ifCondition) base.if = binding.ifCondition
   if (typeof binding.timeout === "number") base.timeout = binding.timeout
@@ -291,7 +283,7 @@ export function commandForScript(script: ScriptAsset) {
   return quotedPath
 }
 
-export function buildAgentMarkdown(agent: AgentAsset, bindings: HookBinding[], scripts: ScriptAsset[]) {
+export function buildAgentMarkdown(agent: AgentAsset, bindings: readonly HookBinding[], scripts: readonly ScriptAsset[]) {
   const frontmatter: Record<string, unknown> = {
     name: agent.name,
     description: agent.description,
@@ -318,12 +310,12 @@ export function buildAgentMarkdown(agent: AgentAsset, bindings: HookBinding[], s
   return `---\n${yaml}\n---\n\n${prompt}\n`
 }
 
-function incomingTargets(edges: FlowEdgeRecord[]) {
+function incomingTargets(edges: readonly FlowEdgeRecord[]) {
   const incoming = new Set(edges.map((edge) => edge.target))
   return incoming
 }
 
-function agentRegex(agents: AgentAsset[]) {
+function agentRegex(agents: readonly AgentAsset[]) {
   return agents.map((agent) => agent.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")
 }
 
