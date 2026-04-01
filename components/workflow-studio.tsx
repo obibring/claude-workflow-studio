@@ -50,6 +50,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -1216,14 +1217,22 @@ export function WorkflowStudio() {
                             <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-slate-400">
                               Model
                             </label>
-                            <Input
+                            <Select
                               value={selectedAgent.model}
-                              onChange={(event) =>
-                                updateSelectedAgent({
-                                  model: event.target.value,
-                                })
-                              }
-                            />
+                              onValueChange={(value) => updateSelectedAgent({ model: value })}
+                            >
+                              <SelectTrigger className="h-10 w-full rounded-md border border-border/60 bg-background/60 px-3 text-sm outline-none focus:border-primary/60">
+                                {selectedAgent.model}
+                              </SelectTrigger>
+                              <SelectContent className="bg-black/90">
+                                <SelectItem value="inherit">inherit</SelectItem>
+                                <SelectItem value="haiku">haiku</SelectItem>
+                                <SelectItem value="sonnet">sonnet</SelectItem>
+                                <SelectItem value="sonnet[1m]">sonnet[1m]</SelectItem>
+                                <SelectItem value="opus">opus</SelectItem>
+                                <SelectItem value="opus[1m]">opus[1m]</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
                         <div>
