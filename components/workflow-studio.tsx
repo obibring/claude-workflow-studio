@@ -1316,44 +1316,43 @@ export function WorkflowStudio() {
                                 <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-slate-400">
                                   Event
                                 </label>
-                                <select
-                                  className="h-10 w-full rounded-2xl border border-border/60 bg-background/60 px-3 text-sm outline-none focus:border-primary/60"
+                                <Select
                                   value={newHookEvent}
-                                  onChange={(event) =>
-                                    setNewHookEvent(
-                                      event.target.value as ClaudeHookEvent,
-                                    )
-                                  }
+                                  onValueChange={(v) => setNewHookEvent(v as ClaudeHookEvent)}
                                 >
-                                  {HOOK_CATALOG.map((item) => (
-                                    <option key={item.event} value={item.event}>
-                                      {item.event}
-                                    </option>
-                                  ))}
-                                </select>
+                                  <SelectTrigger className="h-10 w-full rounded-md border border-border/60 bg-background/60 px-3 text-sm outline-none focus:border-primary/60">
+                                    {newHookEvent}
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-black/90">
+                                    {HOOK_CATALOG.map((item) => (
+                                      <SelectItem key={item.event} value={item.event}>
+                                        {item.event}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </div>
                               <div>
                                 <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-slate-400">
                                   Handler type
                                 </label>
-                                <select
-                                  className="h-10 w-full rounded-2xl border border-border/60 bg-background/60 px-3 text-sm outline-none focus:border-primary/60"
+                                <Select
                                   value={newHookType}
-                                  onChange={(event) =>
-                                    setNewHookType(
-                                      event.target
-                                        .value as HookBinding["handlerType"],
-                                    )
-                                  }
+                                  onValueChange={(v) => setNewHookType(v as HookBinding["handlerType"])}
                                 >
-                                  <option value="command">command</option>
-                                  <option value="prompt">prompt</option>
-                                  <option value="agent">agent</option>
-                                  <option value="http">http</option>
-                                </select>
+                                  <SelectTrigger className="h-10 w-full rounded-md border border-border/60 bg-background/60 px-3 text-sm outline-none focus:border-primary/60">
+                                    {newHookType}
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-black/90">
+                                    <SelectItem value="command">command</SelectItem>
+                                    <SelectItem value="prompt">prompt</SelectItem>
+                                    <SelectItem value="agent">agent</SelectItem>
+                                    <SelectItem value="http">http</SelectItem>
+                                  </SelectContent>
+                                </Select>
                               </div>
                             </div>
-                            <div className="rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-xs text-primary">
+                            <div className="rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-xs text-primary">
                               Placement: {getPlacementForEvent(newHookEvent)} ·{" "}
                               {
                                 HOOK_CATALOG.find(
